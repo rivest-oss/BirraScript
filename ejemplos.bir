@@ -1,0 +1,46 @@
+###############
+# BIRRASCRIPT #
+#  🍺 🍻 🍺   #
+###############
+
+entero = -123456
+flotante = 3.1415
+cadena = "¡Hola!"
+booleano = true
+lista = [ 123, "blabla", 456.789 ]
+diccionario = {
+	"abc": 'def',
+	123: 'ghi',
+	"jkl": 456.789,
+	
+	"anon":
+		fn()
+			return 123
+		end
+}
+
+for i = 0 while i < 5 do
+	# bla bla
+	i++
+end
+
+while i < 5 do
+	# bla bla
+end
+
+fn función1(a, b, c)
+	-- bla bla
+	return a * b + c
+end
+
+if i < 10 then
+	/* bla bla */
+else
+	// bla bla
+end
+
+--[[ Si. ]]
+# Birra soporta
+-- varios
+/* modos */
+// de comentarios.
