@@ -14,11 +14,22 @@ process.stdin.on("data", processOnStdin);
 
 const VERSION = "0.1.0";
 
-const BIRRA_OPERATORS = {};
-const BIRRA_OPERATORS_ARR = Object.values(BIRRA_OPERATORS);
+const BIRRA_OPERATORS = [
+	"=", "<", ">", "<=", ">=", "<>", "!=",
+	
+	".",
+	"+", "-", "*", "/",
+	"++", "--",
+	"+=", "-=", "*=", "/=",
+	
+	"~", "&", "|", "^",
+	"!", "&&", "||", "^^",
+	
+	"(", ")", "[", "]", "{", "}"
+];
 
-for(const key of Object.keys(BIRRA_OPERATORS)) {
-	BIRRA_OPERATORS[BIRRA_OPERATORS[key]] = BIRRA_OPERATORS[key];
+for(let i = 0; i < BIRRA_OPERATORS.length; i++) {
+	BIRRA_OPERATORS[BIRRA_OPERATORS[i]] = BIRRA_OPERATORS[i];
 };
 
 class Birra {
@@ -55,6 +66,14 @@ class Birra {
 		return false;
 	};
 	
+	is_number(c) {
+		return ("0123456789".split('').includes(c));
+	};
+	
+	is_operator(c) {
+		return (BIRRA_OPERATORS.includes(c));
+	};
+	
 	skip_whitespace() {
 		let c = '\0';
 		while(true) {
@@ -69,6 +88,111 @@ class Birra {
 		};
 	};
 	
+	parse_string(c) {
+		let str = c;
+		
+		while(true) {
+			c = this.read_character();
+			if(c === str[0]) break;
+			
+			if(c === '\0') {
+				console.error("Unexpected EOF while in String declaration");
+				return -1;
+			}
+			
+			str += c;
+		};
+		
+		this._tokens.push({
+			type: "STRING",
+			value: str,
+		});
+		
+		return 0;
+	};
+	
+	parse_number(c) {
+		let num = c;
+		
+		while(true) {
+			c = this.read_character();
+			
+			if(c === '\0') {
+				console.error("Unexpected EOF while in Number declaration");
+				return -1;
+			}
+			
+			if(this.is_number(c)) {
+				num += c;
+			} else {
+				this.back_a_character();
+				break;
+			}
+		};
+		
+		this._tokens.push({
+			type: "NUMBER",
+			value: num,
+		});
+		
+		return 0;
+	};
+	
+	parse_operator(c) {
+		let op = c;
+		
+		while(true) {
+			c = this.read_character();
+			
+			if(c === '\0') {
+				console.error("Unexpected EOF while in Operator declaration");
+				return -1;
+			}
+			
+			if(this.is_operator(op + c)) {
+				op += c;
+			} else {
+				this.back_a_character();
+				break;
+			}
+		};
+		
+		this._tokens.push({
+			type: "OPERATOR",
+			value: op,
+		});
+		
+		return 0;
+	};
+	
+	parse_keyword(c) {
+		let word = c;
+		
+		while(true) {
+			c = this.read_character();
+			
+			if(this.is_whitespace(c)) break;
+			
+			if(
+				(this.is_operator(c)) ||
+				(c === '"') ||
+				(c === '\'')
+			) {
+				this.back_a_character();
+				break;
+			}
+			
+			word += c;
+		};
+		
+		this._tokens.push({
+			type: "KEYWORD",
+			value: word,
+		});
+		
+		return 0;
+	};
+	
 	parse_tokens(src) {
 		this._tokens_state = {
 			eof: false, src, srcI: 0,
@@ -77,16 +201,61 @@ class Birra {
 		
 		this._tokens = [];
 		
-		let c = '\0';
+		let c = '\0', onComment = false, onMultilineComment = false;
 		
 		while(this._tokens_state.eof === false) {
-			this.skip_whitespace();
-			
 			c = this.read_character();
 			if(c === '\0') break;
 			
-			if((c === '"') || (c === '\'')) {
+			if(onMultilineComment) {
+				// [TODO]
+			}
+			
+			if(onComment) {
+				if(c === '\n') onComment = false;
+				continue;
+			}
+			
+			if(this.is_whitespace(c)) continue;
+			
+			// Detect "#" single-line comments.
+			if(c === '#') {
+				onComment = true;
+				continue;
+			}
+			
+			// Detect "//" single-line coments.
+			if(c === '/') {
+				const nextC = this.read_character();
 				
+				if(nextC === '/') {
+					onComment = true;
+					continue;
+				} else {
+					this.back_a_character();
+				}
+			}
+			
+			// Detect "--" single-line coments.
+			if(c === '-') {
+				const nextC = this.read_character();
+				
+				if(nextC === '-') {
+					onComment = true;
+					continue;
+				} else {
+					this.back_a_character();
+				}
+			}
+			
+			if((c === '"') || (c === '\'')) {
+				this.parse_string(c);
+			} else if(this.is_number(c)) {
+				this.parse_number(c);
+			} else if(this.is_operator(c)) {
+				this.parse_operator(c);
+			} else {
+				this.parse_keyword(c);
 			}
 		};
 		
