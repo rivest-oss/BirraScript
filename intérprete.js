@@ -2,11 +2,11 @@
 
 const fs = require("node:fs");
 const processArgv = process.argv.slice(2);
-const processWrite = process.stdout.write;
+const processWrite = (...args) => process.stdout.write(...args);
 let processOnStdin = () => {}; // Do this.
 const exit = process.exit;
 const endl = "\n";
-process.stdin.on("data", processOnStdin);
+process.stdin.on("data", buff => processOnStdin(buff.toString("utf-8")));
 
 
 
@@ -24,8 +24,13 @@ const BIRRA_OPERATORS = [
 	
 	"~", "&", "|", "^",
 	"!", "&&", "||", "^^",
+	"~=", "&=", "&&=", "|=", "||=", "^=", "^^=",
 	
-	"(", ")", "[", "]", "{", "}"
+	"<<", ">>", "<<=", ">>=",
+	
+	"(", ")", "[", "]", "{", "}",
+	
+	";",
 ];
 
 for(let i = 0; i < BIRRA_OPERATORS.length; i++) {
@@ -88,12 +93,12 @@ class Birra {
 		};
 	};
 	
-	parse_string(c) {
-		let str = c;
+	parse_string(initial_c) {
+		let str = "", c = '';
 		
 		while(true) {
 			c = this.read_character();
-			if(c === str[0]) break;
+			if(c === initial_c) break;
 			
 			if(c === '\0') {
 				console.error("Unexpected EOF while in String declaration");
@@ -201,14 +206,22 @@ class Birra {
 		
 		this._tokens = [];
 		
-		let c = '\0', onComment = false, onMultilineComment = false;
+		let	c = '\0', onComment = false, onMultilineComment = false,
+			lastCommentThingy = "";
 		
 		while(this._tokens_state.eof === false) {
 			c = this.read_character();
 			if(c === '\0') break;
 			
-			if(onMultilineComment) {
-				// [TODO]
+			if(onMultilineComment !== false) {
+				lastCommentThingy = (lastCommentThingy + c).slice(-8);
+				
+				if(lastCommentThingy.endsWith(onMultilineComment)) {
+					lastCommentThingy = "";
+					onMultilineComment = false;
+				}
+				
+				continue;
 			}
 			
 			if(onComment) {
@@ -242,6 +255,30 @@ class Birra {
 				
 				if(nextC === '-') {
 					onComment = true;
+					continue;
+				} else {
+					this.back_a_character();
+				}
+			}
+			
+			// Detect "~~" single-line coments.
+			if(c === '~') {
+				const nextC = this.read_character();
+				
+				if(nextC === '~') {
+					onComment = true;
+					continue;
+				} else {
+					this.back_a_character();
+				}
+			}
+			
+			// Detect "/*" multi-line comments.
+			if(c === '/') {
+				const nextC = this.read_character();
+				
+				if(nextC === '*') {
+					onMultilineComment = "*/";
 					continue;
 				} else {
 					this.back_a_character();
@@ -289,13 +326,23 @@ function handleScriptFile(scriptFile, scriptArgv) {
 
 class BirraREPL {
 	static handle(scriptArgv) {
-		processOnStdin = () => {
-			// [TODO]
+		const birra = new Birra();
+		
+		BirraREPL.showWelcome();
+		BirraREPL.showInput();
+		
+		processOnStdin = str => {
+			const tokens = birra.parse_tokens(str);
+			birra.print_lexer_tokens(tokens);
+			
+			BirraREPL.showInput();
 		};
+		
+		return birra;
 	};
 	
 	static showWelcome() {
-		processWrite("Birra " + VERSION + endl);
+		processWrite("BirraScript " + VERSION + " 🍺🍻🍺" + endl);
 	};
 	
 	static showInput() {
