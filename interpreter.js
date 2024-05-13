@@ -5,7 +5,7 @@ const fs = require("node:fs");
 
 const processWrite = (...args) => process.stdout.write(...args);
 const exit = process.exit;
-const processOnStdin = () => {}; // Do this.
+let processOnStdin = () => {}; // Do this.
 
 process.stdin.on("data", (buff) => processOnStdin(buff.toString("utf-8")));
 
@@ -346,10 +346,21 @@ class BirraLexer {
 				this.characterBack();
 			}
 
-			if ((c === '"' || c === "'") && this.parseString(c) < 0) return -1;
-			if (this.isNumber(c) && this.parseNumber(c) < 0) return -1;
-			if (this.isOperator(c) && this.parseOperator(c) < 0) return -1;
-			if (this.parseKeyword(c) < 0) return -1;
+			// pure bs that doesn't work when refactored
+			//      ^ did you understood the reference?
+			if((c === '"') || (c === '\'')) {
+				if(this.parseString(c) < 0)
+					return -1;
+			} else if(this.isNumber(c)) {
+				if(this.parseNumber(c) < 0)
+					return -1;
+			} else if(this.isOperator(c)) {
+				if(this.parseOperator(c) < 0)
+					return -1;
+			} else {
+				if(this.parseKeyword(c) < 0)
+					return -1;
+			}
 		}
 
 		this.tokens.push({
@@ -388,7 +399,7 @@ function handleScriptFile(scriptFile, scriptArgv) {
 }
 
 class BirraREPL {
-	endl = "\n";
+	static endl = "\n";
 	static handle() {
 		const birra = new BirraLexer();
 
@@ -406,7 +417,7 @@ class BirraREPL {
 	}
 
 	static showWelcome() {
-		processWrite("BirraScript " + VERSION + " 🍺🍻🍺" + endl);
+		processWrite("BirraScript " + VERSION + " 🍺🍻🍺" + this.endl);
 	}
 
 	static showInput() {
