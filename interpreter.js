@@ -32,98 +32,80 @@ const BIRRA_OPERATORS = [
 	"(", ")", "[", "]", "{", "}",
 ];
 
-for(let i = 0; i < BIRRA_OPERATORS.length; i++) {
-	BIRRA_OPERATORS[BIRRA_OPERATORS[i]] = BIRRA_OPERATORS[i];
-};
-
 class BirraLexer {
-	error_at_line(err_str, show_column = true) {
-		if(!this._lasting_line) {
+	errorAtLine(err_str, show_column = true) {
+		if(!this.lastLine) {
 			console.error(	err_str,
-							(this._tokens_state.row + 1)
+							(this.tokensState.row + 1)
 							+ ":" +
-							(this._tokens_state.column + 1));
+							(this.tokensState.column + 1));
 		} else {
-			console.error(this._lasting_line);
-			console.error(' '.repeat(this._tokens_state.column - 1) + '^');
+			console.error(this.lastLine);
+			console.error(' '.repeat(this.tokensState.column - 1) + '^');
 			console.error('');
 			console.error(	err_str, "at",
-							(this._tokens_state.row + 1)
+							(this.tokensState.row + 1)
 							+ ":" +
-							(this._tokens_state.column + 1));
+							(this.tokensState.column + 1));
 		}
 		
 		return -1;
 	};
 	
-	read_character() {
-		if(this._tokens_state.srcI >= this._tokens_state.src.length)
+	readCharacter() {
+		if(this.tokensState.srcI >= this.tokensState.src.length)
 			return '\0';
 		
-		const c = this._tokens_state.src[this._tokens_state.srcI];
-		this._tokens_state.srcI++;
+		const c = this.tokensState.src[this.tokensState.srcI];
+		this.tokensState.srcI++;
 		
 		if(c === '\n') {
-			this._tokens_state.row++;
-			this._lastTokensColumn = this._tokens_state.column + 0;
-			this._tokens_state.column = 0;
-			this._lasting_line = "";
+			this.tokensState.row++;
+			this.lastTokensColumn = this.tokensState.column + 0;
+			this.tokensState.column = 0;
+			this.lastLine = "";
 		} else {
-			this._tokens_state.column++;
-			this._lastTokensColumn = this._tokens_state.column;
+			this.tokensState.column++;
+			this.lastTokensColumn = this.tokensState.column;
 			
-			this._lasting_line =	((this._lasting_line ?? "") +
-									((c === '\t') ? "    " : c)).slice(-2048);
+			this.lastLine =	((this.lastLine ?? "") +
+							((c === '\t') ? "    " : c)).slice(-2048);
 		}
 		
 		return c;
 	};
 	
-	back_a_character() {
-		this._tokens_state.srcI -= 1;
-		if(this._tokens_state.srcI < 0) this._tokens_state.srcI = 0;
+	backACharacter() {
+		this.tokensState.srcI -= 1;
+		if(this.tokensState.srcI < 0) this.tokensState.srcI = 0;
 		
-		this._tokens_state.column = this._lastTokensColumn;
+		this.tokensState.column = this.lastTokensColumn;
 	};
 	
-	is_whitespace(c) {
+	isWhitespace(c) {
 		if(c.charCodeAt(0) <= 0x20) return true;
 		if(c.charCodeAt(0) === 0x7f) return true;
 		
 		return false;
 	};
 	
-	is_number(c) {
+	isNumber(c) {
 		return ("0123456789.".split('').includes(c));
 	};
 	
-	is_operator(c) {
+	isOperator(c) {
 		return (BIRRA_OPERATORS.includes(c));
 	};
 	
-	skip_whitespace() {
-		let c = '\0';
-		while(true) {
-			c = this.read_character();
-			
-			if(c === '\0') break;
-			
-			if(this.is_whitespace(c) === false) {
-				this.back_a_character();
-				break;
-			}
-		};
-	};
-	
-	parse_string(initial_c) {
+	parseString(initialC) {
 		let str = "", c = '';
 		
 		while(true) {
-			c = this.read_character();
-			if(c === initial_c) break;
+			c = this.readCharacter();
+			if(c === initialC) break;
 			
 			if(c === '\0') {
-				this.error_at_line(	"Unexpected EOF while in String " +
+				this.errorAtLine(	"Unexpected EOF while in String " +
 									"declaration");
 				return -1;
 			}
@@ -131,7 +113,7 @@ class BirraLexer {
 			str += c;
 		};
 		
-		this._tokens.push({
+		this.tokens.push({
 			type: "STRING",
 			value: str,
 		});
@@ -139,15 +121,15 @@ class BirraLexer {
 		return 0;
 	};
 	
-	parse_number(c) {
-		let num = c, is_dot = false;
+	parseNumber(c) {
+		let num = c, isDot = false;
 		
 		while(true) {
-			c = this.read_character();
+			c = this.readCharacter();
 			
-			if(this.is_number(c)) {
+			if(this.isNumber(c)) {
 				if((c === '.') && num.includes('.')) {
-					this.error_at_line(	"Unexpected '.' in Number " +
+					this.errorAtLine(	"Unexpected '.' in Number " +
 										"declaration");
 					return -1;
 				}
@@ -155,8 +137,8 @@ class BirraLexer {
 				num += c;
 			} else {
 				if(num === ".") {
-					is_dot = true;
-					this.back_a_character();
+					isDot = true;
+					this.backACharacter();
 					break;
 				}
 				
@@ -165,24 +147,24 @@ class BirraLexer {
 						num += c;
 						continue;
 					} else {
-						this.error_at_line(	"Unexpected '" + c + "' in " +
+						this.errorAtLine(	"Unexpected '" + c + "' in " +
 											"Number declaration");
 						return -1;
 					}
 				}
 				
-				this.back_a_character();
+				this.backACharacter();
 				break;
 			}
 		};
 		
-		if(is_dot) {
-			this._tokens.push({
+		if(isDot) {
+			this.tokens.push({
 				type: "OPERATOR",
 				value: ".",
 			});
 		} else {
-			this._tokens.push({
+			this.tokens.push({
 				type: "NUMBER",
 				value: num,
 			});
@@ -191,27 +173,27 @@ class BirraLexer {
 		return 0;
 	};
 	
-	parse_operator(c) {
+	parseOperator(c) {
 		let op = c;
 		
 		while(true) {
-			c = this.read_character();
+			c = this.readCharacter();
 			
 			if(c === '\0') {
-				this.error_at_line(	"Unexpected EOF while in Operator " +
+				this.errorAtLine(	"Unexpected EOF while in Operator " +
 									"declaration");
 				return -1;
 			}
 			
-			if(this.is_operator(op + c)) {
+			if(this.isOperator(op + c)) {
 				op += c;
 			} else {
-				this.back_a_character();
+				this.backACharacter();
 				break;
 			}
 		};
 		
-		this._tokens.push({
+		this.tokens.push({
 			type: "OPERATOR",
 			value: op,
 		});
@@ -219,31 +201,31 @@ class BirraLexer {
 		return 0;
 	};
 	
-	parse_keyword(c) {
+	parseKeyword(c) {
 		let word = c;
 		
 		while(true) {
-			c = this.read_character();
+			c = this.readCharacter();
 			
-			if(this.is_whitespace(c)) break;
+			if(this.isWhitespace(c)) break;
 			if(c === '.') {
-				this.back_a_character();
+				this.backACharacter();
 				break;
 			}
 			
 			if(
-				(this.is_operator(c)) ||
+				(this.isOperator(c)) ||
 				(c === '"') ||
 				(c === '\'')
 			) {
-				this.back_a_character();
+				this.backACharacter();
 				break;
 			}
 			
 			word += c;
 		};
 		
-		this._tokens.push({
+		this.tokens.push({
 			type: "KEYWORD",
 			value: word,
 		});
@@ -252,18 +234,18 @@ class BirraLexer {
 	};
 	
 	parse(src) {
-		this._tokens_state = {
+		this.tokensState = {
 			eof: false, src, srcI: 0,
 			row: 0, column: 0,
 		};
 		
-		this._tokens = [];
+		this.tokens = [];
 		
 		let	c = '\0', onComment = false, onMultilineComment = false,
 			lastCommentThingy = "";
 		
-		while(this._tokens_state.eof === false) {
-			c = this.read_character();
+		while(this.tokensState.eof === false) {
+			c = this.readCharacter();
 			if(c === '\0') break;
 			
 			if(onMultilineComment !== false) {
@@ -282,7 +264,7 @@ class BirraLexer {
 				continue;
 			}
 			
-			if(this.is_whitespace(c)) continue;
+			if(this.isWhitespace(c)) continue;
 			
 			// Detect "#" single-line comments.
 			if(c === '#') {
@@ -292,77 +274,77 @@ class BirraLexer {
 			
 			// Detect "//" single-line coments.
 			if(c === '/') {
-				const nextC = this.read_character();
+				const nextC = this.readCharacter();
 				
 				if(nextC === '/') {
 					onComment = true;
 					continue;
 				} else {
-					this.back_a_character();
+					this.backACharacter();
 				}
 			}
 			
 			// Detect "--" single-line coments.
 			if(c === '-') {
-				const nextC = this.read_character();
+				const nextC = this.readCharacter();
 				
 				if(nextC === '-') {
 					onComment = true;
 					continue;
 				} else {
-					this.back_a_character();
+					this.backACharacter();
 				}
 			}
 			
 			// Detect "~~" single-line coments.
 			if(c === '~') {
-				const nextC = this.read_character();
+				const nextC = this.readCharacter();
 				
 				if(nextC === '~') {
 					onComment = true;
 					continue;
 				} else {
-					this.back_a_character();
+					this.backACharacter();
 				}
 			}
 			
 			// Detect "/*" multi-line comments.
 			if(c === '/') {
-				const nextC = this.read_character();
+				const nextC = this.readCharacter();
 				
 				if(nextC === '*') {
 					onMultilineComment = "*/";
 					continue;
 				} else {
-					this.back_a_character();
+					this.backACharacter();
 				}
 			}
 			
 			if((c === '"') || (c === '\'')) {
-				if(this.parse_string(c) < 0)
+				if(this.parseString(c) < 0)
 					return -1;
-			} else if(this.is_number(c)) {
-				if(this.parse_number(c) < 0)
+			} else if(this.isNumber(c)) {
+				if(this.parseNumber(c) < 0)
 					return -1;
-			} else if(this.is_operator(c)) {
-				if(this.parse_operator(c) < 0)
+			} else if(this.isOperator(c)) {
+				if(this.parseOperator(c) < 0)
 					return -1;
 			} else {
-				if(this.parse_keyword(c) < 0)
+				if(this.parseKeyword(c) < 0)
 					return -1;
 			}
 		};
 		
-		this._tokens.push({
+		this.tokens.push({
 			type: "EOF",
-			value:	(this._tokens_state.row + 1) + ":" +
-					(this._tokens_state.column + 1),
+			value:	(this.tokensState.row + 1) + ":" +
+					(this.tokensState.column + 1),
 		});
 		
-		return this._tokens;
+		return this.tokens;
 	};
 	
-	print_lexer_tokens(tokens) {
+	printTokens(tokens) {
 		if(tokens < 0) return -1;
 		
 		for(const token of tokens) {
@@ -386,7 +368,7 @@ function handleScriptFile(scriptFile, scriptArgv) {
 		const birra = new BirraLexer();
 		const tokens = birra.parse(buff.toString("utf-8"));
 		
-		birra.print_lexer_tokens(tokens);
+		birra.printTokens(tokens);
 	});
 };
 
@@ -399,7 +381,7 @@ class BirraREPL {
 		
 		processOnStdin = str => {
 			const tokens = birra.parse(str);
-			birra.print_lexer_tokens(tokens);
+			birra.printTokens(tokens);
 			
 			BirraREPL.showInput();
 		};
@@ -424,7 +406,7 @@ function main(argv) {
 			scriptArgv.push(arg);
 		} else {
 			if(arg.startsWith('-')) {
-				console.log("The interpreter can't handle argument \"" +
+				console.log("The interpreter couldn't handle argument \"" +
 							arg + "\".");
 				return exit(1);
 			}
