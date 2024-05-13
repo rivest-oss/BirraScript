@@ -424,8 +424,8 @@ function main(argv) {
 			scriptArgv.push(arg);
 		} else {
 			if(arg.startsWith('-')) {
-				console.log("El intérprete no sabe lidiar con ese " +
-							"argumento \"" + arg + "\".");
+				console.log("The interpreter can't handle argument \"" +
+							arg + "\".");
 				return exit(1);
 			}
 		
