@@ -36,7 +36,7 @@ for(let i = 0; i < BIRRA_OPERATORS.length; i++) {
 	BIRRA_OPERATORS[BIRRA_OPERATORS[i]] = BIRRA_OPERATORS[i];
 };
 
-class Birra {
+class BirraLexer {
 	error_at_line(err_str, show_column = true) {
 		console.error(	err_str,
 						(this._tokens_state.row + 1)
@@ -327,7 +327,7 @@ class Birra {
 		
 		this._tokens.push({
 			type: "EOF",
-			value:	(this._tokens_state.row + 1) + ":"
+			value:	(this._tokens_state.row + 1) + ":" +
 					(this._tokens_state.column + 1),
 		});
 		
@@ -350,7 +350,7 @@ function handleScriptFile(scriptFile, scriptArgv) {
 			return exit(1);
 		}
 		
-		const birra = new Birra();
+		const birra = new BirraLexer();
 		const tokens = birra.parse_tokens(buff.toString("utf-8"));
 		
 		birra.print_lexer_tokens(tokens);
@@ -359,7 +359,7 @@ function handleScriptFile(scriptFile, scriptArgv) {
 
 class BirraREPL {
 	static handle(scriptArgv) {
-		const birra = new Birra();
+		const birra = new BirraLexer();
 		
 		BirraREPL.showWelcome();
 		BirraREPL.showInput();
