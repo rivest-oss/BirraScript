@@ -17,7 +17,7 @@ const VERSION = "0.1.0";
 const BIRRA_OPERATORS = [
 	"=", "<", ">", "<=", ">=", "<>", "!=",
 	
-	".", ",", ":", ";",
+	",", ":", ";",
 	
 	"+", "-", "*", "/",
 	"++", "--",
@@ -37,6 +37,14 @@ for(let i = 0; i < BIRRA_OPERATORS.length; i++) {
 };
 
 class Birra {
+	error_at_line(err_str, show_column = true) {
+		console.error(	err_str,
+						(this._tokens_state.row + 1)
+						+ ":" +
+						(this._tokens_state.column + 1));
+		return -1;
+	};
+	
 	read_character() {
 		if(this._tokens_state.srcI >= this._tokens_state.src.length)
 			return '\0';
@@ -71,7 +79,7 @@ class Birra {
 	};
 	
 	is_number(c) {
-		return ("0123456789".split('').includes(c));
+		return ("0123456789.".split('').includes(c));
 	};
 	
 	is_operator(c) {
@@ -100,7 +108,8 @@ class Birra {
 			if(c === initial_c) break;
 			
 			if(c === '\0') {
-				console.error("Unexpected EOF while in String declaration");
+				this.error_at_line(	"Unexpected EOF while in String " +
+									"declaration");
 				return -1;
 			}
 			
@@ -121,14 +130,26 @@ class Birra {
 		while(true) {
 			c = this.read_character();
 			
-			if(c === '\0') {
-				console.error("Unexpected EOF while in Number declaration");
-				return -1;
-			}
-			
 			if(this.is_number(c)) {
+				if((c === '.') && num.includes('.')) {
+					this.error_at_line(	"Unexpected '.' in Number " +
+										"declaration");
+					return -1;
+				}
+				
 				num += c;
 			} else {
+				if((c === 'x') || (c === 'b')) {
+					if(num === "0") {
+						num += c;
+						continue;
+					} else {
+						this.error_at_line(	"Unexpected '" + c + "' in " +
+											"Number declaration");
+						return -1;
+					}
+				}
+				
 				this.back_a_character();
 				break;
 			}
@@ -149,7 +170,8 @@ class Birra {
 			c = this.read_character();
 			
 			if(c === '\0') {
-				console.error("Unexpected EOF while in Operator declaration");
+				this.error_at_line(	"Unexpected EOF while in Operator " +
+									"declaration");
 				return -1;
 			}
 			
@@ -176,6 +198,10 @@ class Birra {
 			c = this.read_character();
 			
 			if(this.is_whitespace(c)) break;
+			if(c === '.') {
+				this.back_a_character();
+				break;
+			}
 			
 			if(
 				(this.is_operator(c)) ||
@@ -285,26 +311,32 @@ class Birra {
 			}
 			
 			if((c === '"') || (c === '\'')) {
-				this.parse_string(c);
+				if(this.parse_string(c) < 0)
+					return -1;
 			} else if(this.is_number(c)) {
-				this.parse_number(c);
+				if(this.parse_number(c) < 0)
+					return -1;
 			} else if(this.is_operator(c)) {
-				this.parse_operator(c);
+				if(this.parse_operator(c) < 0)
+					return -1;
 			} else {
-				this.parse_keyword(c);
+				if(this.parse_keyword(c) < 0)
+					return -1;
 			}
 		};
 		
 		this._tokens.push({
 			type: "EOF",
-			value:	"L" + (this._tokens_state.row + 1) +
-					"C" + (this._tokens_state.column + 1),
+			value:	(this._tokens_state.row + 1) + ":"
+					(this._tokens_state.column + 1),
 		});
 		
 		return this._tokens;
 	};
 	
 	print_lexer_tokens(tokens) {
+		if(tokens < 0) return -1;
+		
 		for(const token of tokens) {
 			console.log(token.type.padStart(8, ' ') + ": " + token.value);
 		};
@@ -314,7 +346,7 @@ class Birra {
 function handleScriptFile(scriptFile, scriptArgv) {
 	fs.readFile(scriptFile, (err, buff) => {
 		if(err) {
-			console.error("Error al intentar leer ese fichero:", err);
+			console.error("Couldn't read the script:", err);
 			return exit(1);
 		}
 		
