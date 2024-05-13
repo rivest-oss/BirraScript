@@ -38,10 +38,21 @@ for(let i = 0; i < BIRRA_OPERATORS.length; i++) {
 
 class BirraLexer {
 	error_at_line(err_str, show_column = true) {
-		console.error(	err_str,
-						(this._tokens_state.row + 1)
-						+ ":" +
-						(this._tokens_state.column + 1));
+		if(!this._lasting_line) {
+			console.error(	err_str,
+							(this._tokens_state.row + 1)
+							+ ":" +
+							(this._tokens_state.column + 1));
+		} else {
+			console.error(this._lasting_line);
+			console.error(' '.repeat(this._tokens_state.column - 1) + '^');
+			console.error('');
+			console.error(	err_str, "at",
+							(this._tokens_state.row + 1)
+							+ ":" +
+							(this._tokens_state.column + 1));
+		}
+		
 		return -1;
 	};
 	
@@ -56,9 +67,11 @@ class BirraLexer {
 			this._tokens_state.row++;
 			this._lastTokensColumn = this._tokens_state.column + 0;
 			this._tokens_state.column = 0;
+			this._lasting_line = "";
 		} else {
 			this._tokens_state.column++;
 			this._lastTokensColumn = this._tokens_state.column;
+			this._lasting_line = ((this._lasting_line ?? "") + c).slice(-1024);
 		}
 		
 		return c;
@@ -223,7 +236,7 @@ class BirraLexer {
 		return 0;
 	};
 	
-	parse_tokens(src) {
+	parse(src) {
 		this._tokens_state = {
 			eof: false, src, srcI: 0,
 			row: 0, column: 0,
@@ -343,6 +356,11 @@ class BirraLexer {
 	};
 };
 
+class BirraParser {
+	parse(tokens) {
+	};
+};
+
 function handleScriptFile(scriptFile, scriptArgv) {
 	fs.readFile(scriptFile, (err, buff) => {
 		if(err) {
@@ -351,7 +369,7 @@ function handleScriptFile(scriptFile, scriptArgv) {
 		}
 		
 		const birra = new BirraLexer();
-		const tokens = birra.parse_tokens(buff.toString("utf-8"));
+		const tokens = birra.parse(buff.toString("utf-8"));
 		
 		birra.print_lexer_tokens(tokens);
 	});
@@ -365,7 +383,7 @@ class BirraREPL {
 		BirraREPL.showInput();
 		
 		processOnStdin = str => {
-			const tokens = birra.parse_tokens(str);
+			const tokens = birra.parse(str);
 			birra.print_lexer_tokens(tokens);
 			
 			BirraREPL.showInput();
