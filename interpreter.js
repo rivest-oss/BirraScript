@@ -136,7 +136,8 @@ class BirraLexer {
 			if (c === initialC) break;
 
 			if (c === "\0") {
-				this.errorAtLine("Unexpected EOF while in string " + "declaration");
+				this.errorAtLine(	"Unexpected EOF while in string " +
+									"declaration");
 				return -1;
 			}
 
@@ -160,7 +161,8 @@ class BirraLexer {
 
 			if (this.isNumber(c)) {
 				if (c === "." && num.includes(".")) {
-					this.errorAtLine("Unexpected '.' in number " + "declaration");
+					this.errorAtLine(	"Unexpected '.' in number " +
+										"declaration");
 					return -1;
 				}
 
@@ -176,7 +178,8 @@ class BirraLexer {
 
 			if (c === "x" || c === "b") {
 				if (num !== "0") {
-					this.errorAtLine("Unexpected '" + c + "' in " + "number declaration");
+					this.errorAtLine(	"Unexpected '" + c + "' in " +
+										"number declaration");
 					return -1;
 				}
 
@@ -210,7 +213,8 @@ class BirraLexer {
 			c = this.readCharacter();
 
 			if (c === "\0") {
-				this.errorAtLine("Unexpected EOF while in operator " + "declaration");
+				this.errorAtLine(	"Unexpected EOF while in operator " +
+									"declaration");
 				return -1;
 			}
 
@@ -443,7 +447,8 @@ function main(argv) {
 			scriptArgv.push(arg);
 		} else {
 			if (arg.startsWith("-")) {
-				console.log("The interpreter can't handle argument \"" + arg + '".');
+				console.log("The interpreter can't handle argument \"" + arg + 
+							'".');
 				return exit(1);
 			}
 
