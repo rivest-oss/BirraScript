@@ -348,13 +348,14 @@ class BirraLexer {
 		if(tokens < 0) return -1;
 		
 		for(const token of tokens) {
-			console.log(token.type.padStart(8, ' ') + ": " + token.value);
+			console.debug(token.type.padStart(8, ' ') + ": " + token.value);
 		};
 	};
 };
 
 class BirraParser {
 	parse(tokens) {
+		// [TODO]
 	};
 };
 
@@ -365,28 +366,36 @@ function handleScriptFile(scriptFile, scriptArgv) {
 			return exit(1);
 		}
 		
-		const birra = new BirraLexer();
-		const tokens = birra.parse(buff.toString("utf-8"));
+		const birraLexer = new BirraLexer();
+		const tokens = birraLexer.parse(buff.toString("utf-8"));
 		
-		birra.printTokens(tokens);
+		birraLexer.printTokens(tokens);
+		
+		const birraParser = new BirraParser();
+		const ast = birraParser.parse(tokens);
+		
+		console.debug("[BirraParser] AST:", ast);
 	});
 };
 
 class BirraREPL {
 	static handle(scriptArgv) {
-		const birra = new BirraLexer();
+		const birraLexer = new BirraLexer();
+		const birraParser = new BirraParser();
 		
 		BirraREPL.showWelcome();
 		BirraREPL.showInput();
 		
 		processOnStdin = str => {
-			const tokens = birra.parse(str);
-			birra.printTokens(tokens);
+			const tokens = birraLexer.parse(str);
+			birraLexer.printTokens(tokens);
+			
+			const ast = birraParser.parse(tokens);
+			
+			console.debug("[BirraParser] AST:", ast);
 			
 			BirraREPL.showInput();
 		};
-		
-		return birra;
 	};
 	
 	static showWelcome() {
@@ -406,8 +415,8 @@ function main(argv) {
 			scriptArgv.push(arg);
 		} else {
 			if(arg.startsWith('-')) {
-				console.log("The interpreter couldn't handle argument \"" +
-							arg + "\".");
+				console.error(	"The interpreter couldn't handle argument \"" +
+								arg + "\".");
 				return exit(1);
 			}
 		
