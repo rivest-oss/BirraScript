@@ -17,7 +17,8 @@ const VERSION = "0.1.0";
 const BIRRA_OPERATORS = [
 	"=", "<", ">", "<=", ">=", "<>", "!=",
 	
-	".",
+	".", ",", ":", ";",
+	
 	"+", "-", "*", "/",
 	"++", "--",
 	"+=", "-=", "*=", "/=",
@@ -29,8 +30,6 @@ const BIRRA_OPERATORS = [
 	"<<", ">>", "<<=", ">>=",
 	
 	"(", ")", "[", "]", "{", "}",
-	
-	";",
 ];
 
 for(let i = 0; i < BIRRA_OPERATORS.length; i++) {
@@ -306,7 +305,9 @@ class Birra {
 	};
 	
 	print_lexer_tokens(tokens) {
-		console.log(tokens);
+		for(const token of tokens) {
+			console.log(token.type.padStart(8, ' ') + ": " + token.value);
+		};
 	};
 };
 
