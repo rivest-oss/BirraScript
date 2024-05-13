@@ -71,7 +71,9 @@ class BirraLexer {
 		} else {
 			this._tokens_state.column++;
 			this._lastTokensColumn = this._tokens_state.column;
-			this._lasting_line = ((this._lasting_line ?? "") + c).slice(-1024);
+			
+			this._lasting_line =	((this._lasting_line ?? "") +
+									((c === '\t') ? "    " : c)).slice(-2048);
 		}
 		
 		return c;
@@ -138,7 +140,7 @@ class BirraLexer {
 	};
 	
 	parse_number(c) {
-		let num = c;
+		let num = c, is_dot = false;
 		
 		while(true) {
 			c = this.read_character();
@@ -152,6 +154,12 @@ class BirraLexer {
 				
 				num += c;
 			} else {
+				if(num === ".") {
+					is_dot = true;
+					this.back_a_character();
+					break;
+				}
+				
 				if((c === 'x') || (c === 'b')) {
 					if(num === "0") {
 						num += c;
@@ -168,10 +176,17 @@ class BirraLexer {
 			}
 		};
 		
-		this._tokens.push({
-			type: "NUMBER",
-			value: num,
-		});
+		if(is_dot) {
+			this._tokens.push({
+				type: "OPERATOR",
+				value: ".",
+			});
+		} else {
+			this._tokens.push({
+				type: "NUMBER",
+				value: num,
+			});
+		}
 		
 		return 0;
 	};
