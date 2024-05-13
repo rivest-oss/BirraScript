@@ -348,6 +348,7 @@ class BirraLexer {
 
 			// pure bs that doesn't work when refactored
 			//      ^ did you understood the reference?
+			// shutup if-if-if guy
 			if((c === '"') || (c === '\'')) {
 				if(this.parseString(c) < 0)
 					return -1;
@@ -365,7 +366,7 @@ class BirraLexer {
 
 		this.tokens.push({
 			type: "EOF",
-			value: this.tokenState.row + 1 + ":" + (this.tokenState.column + 1),
+			value: this.tokenState.row + 1 + ":" +(this.tokenState.column + 1),
 		});
 
 		return this.tokens;
@@ -381,7 +382,9 @@ class BirraLexer {
 }
 
 class BirraParser {
-	parse(tokens) {}
+	parse(tokens) {
+		if(tokens < 0) return -1;
+	}
 }
 
 function handleScriptFile(scriptFile, scriptArgv) {
@@ -391,29 +394,35 @@ function handleScriptFile(scriptFile, scriptArgv) {
 			return exit(1);
 		}
 
-		const birra = new BirraLexer();
-		const tokens = birra.parse(buff.toString("utf-8"));
+		const birraLexer = new BirraLexer();
+		const birraParser = new BirraParser();
 
-		birra.printLexerTokens(tokens);
+		const tokens = birraLexer.parse(buff.toString("utf-8"));
+		birraLexer.printLexerTokens(tokens);
+
+		const ast = birraParser.parse(tokens);
+		console.debug("[BirraParser] AST:", ast);
 	});
 }
 
 class BirraREPL {
 	static endl = "\n";
 	static handle() {
-		const birra = new BirraLexer();
+		const birraLexer = new BirraLexer();
+		const birraParser = new BirraParser();
 
 		BirraREPL.showWelcome();
 		BirraREPL.showInput();
 
 		processOnStdin = (str) => {
-			const tokens = birra.parse(str);
-			birra.printLexerTokens(tokens);
+			const tokens = birraLexer.parse(str);
+			birraLexer.printLexerTokens(tokens);
+
+			const ast = birraParser.parse(tokens);
+			console.debug("[BirraParser] AST:", ast);
 
 			BirraREPL.showInput();
 		};
-
-		return birra;
 	}
 
 	static showWelcome() {
