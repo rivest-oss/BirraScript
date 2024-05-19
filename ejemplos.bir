@@ -9,11 +9,11 @@ cadena = "¡Hola!"
 booleano = true
 lista = [ 123, "blabla", 456.789 ]
 diccionario = {
-	"abc": 'def',
+	abc: 'def',
 	123: 'ghi',
-	"jkl": 456.789,
+	jkl: 456.789,
 	
-	"anon":
+	anon:
 		fn()
 			return 123
 		end
