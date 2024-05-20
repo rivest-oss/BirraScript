@@ -499,31 +499,6 @@ class BirraParser {
 	}
 
 	factor() {
-		/*
-const BIRRA_OPERATORS = [
-	"+=",
-	"-=",
-	"*=",
-	"**=",
-	"/=",
-
-	"~=",
-	"&=",
-	"&&=",
-	"|=",
-	"||=",
-	"^=",
-	"^^=",
-
-	"<<=",
-	">>=",
-
-	"~",
-	"!",
-	"++",
-	"--",
-];		*/
-
 		const token = this.token;
 
 		if(this.accept("NUMBER"))
