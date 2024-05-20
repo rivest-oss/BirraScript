@@ -42,6 +42,7 @@ const BIRRA_OPERATORS = [
 	"*",
 	"**",
 	"/",
+	"%",
 	"++",
 	"--",
 	"+=",
@@ -556,16 +557,25 @@ class BirraParser {
 		return left;
 	}
 
-	exponent() { return this.binaryOp("**", () => this.factor()); }
-	multiplication() { return this.binaryOp("*", () => this.exponent()); }
-	division() { return this.binaryOp("/", () => this.multiplication()); }
-	addition() { return this.binaryOp("+", () => this.division()); }
-	subtraction() { return this.binaryOp("-", () => this.addition()); }
-
 	expression() {
-		const ret = this.subtraction();
-		this.next();
-		return ret;
+		const operators = [
+			"**", "*", "/", "%", "+", "-",
+			"<<", ">>",
+			"<>", "<", "<=", ">", ">=", "==", "!=",
+			"&", "^", "|", "&&", "^^", "||",
+		];
+
+		const precedenceCallback = operatorI => {
+			const callback = (operatorI === 0)
+				? (() => this.factor())
+				: (() => precedenceCallback(operatorI - 1));
+			
+			return this.binaryOp(operators[operatorI], callback);
+		};
+
+		const result = precedenceCallback(operators.length - 1);
+		this.next()
+		return result;
 	}
 
 	// `modus` may be "LET", "CONST", et cetera.
