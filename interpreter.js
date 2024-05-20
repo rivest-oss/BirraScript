@@ -286,7 +286,7 @@ class BirraLexer {
 			"let", "const",
 			"namespace", "class",
 			"if", "while", "for",
-			"fn", "return",
+			"fn", "function", "return",
 			"pub", "static",
 			"then", "else", "do", "end",
 			"extends", "override",
@@ -499,8 +499,12 @@ class BirraParser {
 		return token;
 	}
 
-	expect(type, value = false) {
-		const expected = this.accept(type, value);
+	expect(types, value = false) {
+		types = types.split(/\|/g);
+
+		const expected = types
+			.map(x => this.accept(x, value))
+			.some(x => x);
 
 		if(expected === false) {
 			let msg = "[BirraParser] Unexpected ";
@@ -511,9 +515,9 @@ class BirraParser {
 				msg += this.token.type;
 			}
 
-			msg += " when expecting " + type + " ";
+			msg += " when expecting " + types.join(" or ") + " ";
 
-			if(value !== false) msg += "(" + value + ") ";
+			if(value !== false) msg += "('" + value + "') ";
 
 			msg += "at " + (this.token.row + 1) + ":";
 			msg += (this.token.column + 1);
@@ -678,7 +682,46 @@ class BirraParser {
 		return arr;
 	}
 
-	block(parent = false) {
+	fn() {
+		this.next();
+
+		const fn = {
+			type: "FUNCTION",
+			args: [],
+			name: false,
+			body: false,
+		};
+
+		if(this.accept("VARIABLE")) {
+			fn.name = this.token.value;
+			this.next();
+		} else if(this.accept("OPERATOR")) {
+			fn.name = this.token.value;
+			this.next();
+		} else if(this.accept("OPERATOR", "(")) {
+			fn.name = false;
+		}
+
+		this.expect("OPERATOR", "(");
+
+		while(true) {
+			this.next();
+
+			if(this.accept("OPERATOR", ")")) break;
+			if(this.accept("OPERATOR", ",")) continue;
+
+			fn.args.push(this.expect("VARIABLE"));
+		};
+
+		this.expect("OPERATOR", ")");
+		this.next();
+
+		fn.body = this.block(true);
+
+		return fn;
+	}
+
+	block(child = false) {
 		const block = {
 			type: "BLOCK",
 			statements: [],
@@ -687,8 +730,16 @@ class BirraParser {
 		while(this.token !== false) {
 			// for
 			if(this.accept("KEYWORD", "for")) {
-				this.next();
 				block.statements.push(this.for_loop());
+				continue;
+			}
+
+			// fn
+			if(
+				this.accept("KEYWORD", "fn") ||
+				this.accept("KEYWORD", "function")
+			) {
+				block.statements.push(this.fn());
 				continue;
 			}
 
@@ -735,8 +786,19 @@ class BirraParser {
 				break;
 			}
 
+			if(this.accept("KEYWORD", "return")) {
+				this.next();
+
+				block.statements.push({
+					type: "RETURN",
+					value: this.expression(),
+				});
+
+				break;
+			}
+
 			if(this.accept("EOF")) {
-				if(parent) {
+				if(child) {
 					break;
 				} else {
 					printDebug("parser/ WHAT!? EOF HERE!?");
@@ -774,7 +836,7 @@ class BirraParser {
 		if(tokens < 0) return -1;
 		this.clear(tokens);
 
-		return this.block(true);
+		return this.block(false);
 	}
 
 	printASTAsTree(ast, root = true, sep_n = 0) {
@@ -827,6 +889,27 @@ class BirraParser {
 				break;
 			};
 
+			case "FUNCTION": {
+				printDebug(sep.repeat(sep_n) + "FUNCTION:");
+				printDebug(sep.repeat(sep_n + 1) + "NAME:" + ast.name);
+				printDebug(sep.repeat(sep_n) + "ARGUMENTS:");
+
+				for(let i = 0; i < ast.args.length; i++) {
+					this.printASTAsTree(ast.args[i], false, sep_n + 1);
+				}
+
+				printDebug(sep.repeat(sep_n) + "BODY:");
+
+				this.printASTAsTree(ast.body, false, sep_n + 1);
+
+				break;
+			};
+
+			case "RETURN":
+				printDebug(sep.repeat(sep_n) + "RETURN:");
+				this.printASTAsTree(ast.value, false, sep_n + 1);
+				break;
+
 			case "ARRAY": {
 				printDebug(sep.repeat(sep_n) + "ARRAY:");
 
@@ -836,6 +919,8 @@ class BirraParser {
 
 				break;
 			};
+
+			case undefined: return ast.toString();
 
 			default: {
 				printDebug("parser() unhandled \"", ast.type, "\":", ast);
@@ -887,11 +972,31 @@ class BirraParser {
 				return str;
 			};
 
+			case "FUNCTION": {
+				let str = "";
+				str = "function " + ast.name + "(";
+				
+				for(let i = 0; i < ast.args.length; i++) {
+					str += this.printASTAsCode(ast.args[i], false);
+					if(i !== (ast.args.length - 1)) str += ", ";
+				};
+
+				str += ") {" + endl;
+				str += this.printASTAsCode(ast.body, false);
+				str += "}";
+
+				return str;
+			};
+
+			case "RETURN":
+				return	("return "
+						+ this.printASTAsCode(ast.value, false));
+
 			case "BLOCK": {
 				let str = "";
 
-				for(const statement of ast.statements) {
-					str += this.printASTAsCode(statement, false);
+				for(let i = 0; i < ast.statements.length; i++) {
+					str += this.printASTAsCode(ast.statements[i], false);
 					str += endl;
 				}
 
