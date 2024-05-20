@@ -9,7 +9,11 @@ let processOnStdin = () => {}; // Do this.
 const processArgv = process.argv.slice(2);
 
 const printDebug = (...args) => {
-	console.debug("\x1b[45m\x1b[97m[DEBUG]\x1b[0m", ...args);
+	console.debug("\x1b[5m\x1b[45m\x1b[97m[DEBUG]\x1b[0m", ...args);
+};
+
+const printTODO = (...args) => {
+	console.debug("\x1b[5m\x1b[103m\x1b[30m[TODO]\x1b[0m", ...args);
 };
 
 process.stdin.on("data", (buff) => processOnStdin(buff.toString("utf-8")));
@@ -488,54 +492,53 @@ class BirraParser {
 	}
 
 	factor() {
-		if(this.token.type === "NUMBER")
-			return this.token;
-		if(this.token.type === "VARIABLE")
-			return this.token;
-	}
-
-	factor() {
 		const token = this.token;
 
 		if(this.accept("NUMBER"))
 			return token;
 		if(this.accept("VARIABLE"))
 			return token;
+
+		if(this.accept("OPERATOR", "+"))
+			return this.unaryOp();
+		if(this.accept("OPERATOR", "-"))
+			return this.unaryOp();
+
+		if(this.accept("OPERATOR", "(")) {
+			this.next();
+			const expr = this.expression();
+			this.expect("OPERATOR", ")");
+
+			return expr;
+		}
 		
-		if(this.accept("OPERATOR", "+")) {
-			this.next();
-
-			return {
-				type: "UNARY_OP",
-				operator: "+",
-				value: this.expression(),
-			};
-		}
-
-		if(this.accept("OPERATOR", "-")) {
-			this.next();
-
-			return {
-				type: "UNARY_OP",
-				operator: "-",
-				value: this.expression(),
-			};
-		}
-
 		this.expect("NUMBER or VARIABLE");
 	}
 
-	expression() {
-		let left = this.factor();
+	unaryOp() {
+		const operator = this.token.value;
+
+		this.next();
+
+		return {
+			type: "UNARY_OP",
+			operator,
+			value: this.factor(),
+		};
+	}
+
+	binaryOp(operators, cb) {
+		let left = cb();
 		this.next();
 
 		while(
-			this.accept("OPERATOR", "+") ||
-			this.accept("OPERATOR", "-")
+			operators
+				.map(x => this.accept("OPERATOR", x))
+				.some(x => x)
 		) {
 			const operator = this.token.value;
 			this.next();
-			const right = this.expression();
+			const right = this.binaryOp(operators, cb);
 
 			left = {
 				type: "BINARY_OP",
@@ -546,6 +549,10 @@ class BirraParser {
 		}
 
 		return left;
+	}
+
+	expression() {
+		return this.binaryOp([ "+", "-" ], () => this.factor());
 	}
 
 	// `modus` may be "LET", "CONST", et cetera.
@@ -617,13 +624,15 @@ class BirraParser {
 				if(root) {
 					break;
 				} else {
-					console.error("[TODO] parser/ WHAT!? EOF HERE!?");
+					printDebug("parser/ WHAT!? EOF HERE!?");
 					exit(1);
 				}
 			}
 
-			printDebug("[TODO] parser/ Add 'if's in 'block'().", this.token);
-			printDebug("^^^^^^", this.token_i, this.tokens.length);
+			printTODO("parser/ Add 'if's in 'block'().");
+			printDebug("^^^^ token:", this.token);
+			printDebug("^^^^ .i:", this.token_i + "/" + this.tokens.length);
+			printDebug("^^^^ .statements:", JSON.stringify(block.statements, null, "    "));
 			exit(1); // <= remove this line
 			this.next();
 		}
@@ -642,7 +651,7 @@ class BirraParser {
 		if(root) printDebug("[BirraParser] AST:");
 
 		const endl = "\n";
-		const sep = "    ";
+		const sep = "   |";
 		
 		switch(ast.type) {
 			case "BINARY_OP":
