@@ -499,6 +499,31 @@ class BirraParser {
 	}
 
 	factor() {
+		/*
+const BIRRA_OPERATORS = [
+	"+=",
+	"-=",
+	"*=",
+	"**=",
+	"/=",
+
+	"~=",
+	"&=",
+	"&&=",
+	"|=",
+	"||=",
+	"^=",
+	"^^=",
+
+	"<<=",
+	">>=",
+
+	"~",
+	"!",
+	"++",
+	"--",
+];		*/
+
 		const token = this.token;
 
 		if(this.accept("NUMBER"))
@@ -506,10 +531,14 @@ class BirraParser {
 		if(this.accept("VARIABLE"))
 			return token;
 
-		if(this.accept("OPERATOR", "+"))
+		const unaryOperators = [ "~", "!", "++", "--", "+", "-" ];
+
+		if(	unaryOperators
+				.map(x => this.accept("OPERATOR", x))
+				.some(x => x)
+		) {
 			return this.unaryOp();
-		if(this.accept("OPERATOR", "-"))
-			return this.unaryOp();
+		}
 
 		if(this.accept("OPERATOR", "(")) {
 			this.next();
