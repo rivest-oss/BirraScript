@@ -290,6 +290,7 @@ class BirraLexer {
 			"pub", "static",
 			"then", "else", "do", "end",
 			"extends", "override",
+			"false", "true",
 		].includes(word);
 
 		this.tokens.push({
@@ -524,6 +525,18 @@ class BirraParser {
 			return token;
 		if(this.accept("VARIABLE"))
 			return token;
+		if(this.accept("STRING"))
+			return token;
+		
+		if(
+			this.accept("KEYWORD", "true") ||
+			this.accept("KEYWORD", "false")
+		) {
+			return {
+				type: "BOOLEAN",
+				value: token.value,
+			};
+		}
 
 		if(	this.unaryOperators
 				.map(x => this.accept("OPERATOR", x))
@@ -592,8 +605,8 @@ class BirraParser {
 		return result;
 	}
 
-	// `modus` may be "LET", "CONST", et cetera.
-	assignment(modus) {
+	// `modus` may be "LET", "CONST".
+	assignment(modus, expr = false) {
 		const variable = {
 			type: "ASSIGNMENT",
 			modus,
@@ -601,7 +614,7 @@ class BirraParser {
 			value: false,
 		};
 
-		const expr = this.expression();
+		if(expr === false) expr = this.expression();
 
 		if(expr.type === "VARIABLE") {
 			variable.name = expr.value;
@@ -620,16 +633,14 @@ class BirraParser {
 				return variable;
 			}
 
-			console.error(	"Unexpected",
-							"\"" + expr.operator + "\"",
-							"when expecting ASSIGNMENT OPERATOR.");
-			exit(1);
+			this.errorStr =	"Unexpected \"" + expr.operator + "\"" +
+							"when expecting ASSIGNMENT OPERATOR";
+			return false;
 		}
 
-		console.error(	"Unexpected",
-						"\"" + expr.type + "\"",
-						"when expecting VARIABLE or ASSIGNMENT.");
-		exit(1);
+		this.errorStr =	"Unexpected \"" + expr.type + "\"" +
+						"when expecting VARIABLE or ASSIGNMENT";
+		return false;
 	}
 
 	block(parent = false) {
@@ -651,7 +662,14 @@ class BirraParser {
 				let continues = true;
 				while(continues) {
 					this.next();
-					block.statements.push(this.assignment("LET"));
+
+					const assignment = this.assignment("LET");
+					if(assignment === false) {
+						console.error(this.errorStr);
+						return exit(1);
+					}
+
+					block.statements.push(assignment);
 					continues = this.accept("OPERATOR", ",");
 				};
 
@@ -663,7 +681,14 @@ class BirraParser {
 				let continues = true;
 				while(continues) {
 					this.next();
-					block.statements.push(this.assignment("CONST"));
+
+					const assignment = this.assignment("CONST");
+					if(assignment === false) {
+						console.error(this.errorStr);
+						return exit(1);
+					}
+
+					block.statements.push(assignment);
 					continues = this.accept("OPERATOR", ",");
 				};
 
@@ -682,6 +707,21 @@ class BirraParser {
 					printDebug("parser/ WHAT!? EOF HERE!?");
 					exit(1);
 				}
+			}
+
+			if(this.accept("VARIABLE") || this.accept("NUMBER")) {
+
+				const expr = this.expression();
+
+				const assignment = this.assignment("LET", expr);
+				if(assignment === false)
+					this.errorStr = false;
+				
+				block.statements.push(assignment || expr);
+
+				if(this.accept("OPERATOR", ",")) this.next();
+
+				continue;
 			}
 
 			printTODO("parser/ Add 'if's in 'block'().");
@@ -727,6 +767,14 @@ class BirraParser {
 			case "NUMBER":
 				printDebug(sep.repeat(sep_n) + "NUMBER: " + ast.value);
 				break;
+
+			case "STRING":
+				printDebug(sep.repeat(sep_n) + "STRING: " + ast.value);
+				break;
+			
+			case "BOOLEAN":
+				printDebug(sep.repeat(sep_n) + "BOOLEAN: " + ast.value);
+				break;
 			
 			case "ASSIGNMENT":
 				printDebug(sep.repeat(sep_n) + "ASSIGNMENT: ");
@@ -763,7 +811,9 @@ class BirraParser {
 
 		switch(ast.type) {
 			case "NUMBER": return ast.value.toString();
+			case "STRING": return "\"" + ast.value.toString() + "\"";
 			case "VARIABLE": return ast.value;
+			case "BOOLEAN": return ast.value;
 
 			case "ASSIGNMENT": {
 				let str = "";
