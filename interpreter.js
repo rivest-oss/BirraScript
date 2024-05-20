@@ -8,6 +8,10 @@ const exit = process.exit;
 let processOnStdin = () => {}; // Do this.
 const processArgv = process.argv.slice(2);
 
+const printDebug = (...args) => {
+	console.debug("\x1b[45m\x1b[97m[DEBUG]\x1b[0m", ...args);
+};
+
 process.stdin.on("data", (buff) => processOnStdin(buff.toString("utf-8")));
 
 const BIRRA_OPERATORS = [
@@ -406,10 +410,10 @@ class BirraLexer {
 	printLexerTokens(tokens) {
 		if (tokens < 0) return -1;
 
-		console.debug("[BirraLexer] Tokens:");
+		printDebug("[BirraLexer] Tokens:");
 
 		for (const token of tokens) {
-			console.debug(token.type.padStart(8, " ") + ": " + token.value);
+			printDebug(token.type.padStart(8, " ") + ": " + token.value);
 		}
 	}
 }
@@ -499,11 +503,23 @@ class BirraParser {
 			return token;
 		
 		if(this.accept("OPERATOR", "+")) {
-			//
+			this.next();
+
+			return {
+				type: "UNARY_OP",
+				operator: "+",
+				value: this.expression(),
+			};
 		}
 
 		if(this.accept("OPERATOR", "-")) {
-			//
+			this.next();
+
+			return {
+				type: "UNARY_OP",
+				operator: "-",
+				value: this.expression(),
+			};
 		}
 
 		this.expect("NUMBER or VARIABLE");
@@ -539,8 +555,6 @@ class BirraParser {
 			modus,
 			value: false,
 		};
-
-		console.log("ANTES DE OWOOOOO", this.token, this.token_i);
 
 		variable.name = this.expect("VARIABLE").value;
 		this.next();
@@ -608,8 +622,8 @@ class BirraParser {
 				}
 			}
 
-			console.debug("[TODO] parser/ Add 'if's in 'block'().", this.token);
-			console.debug("^^^^^^", this.token_i, this.tokens.length);
+			printDebug("[TODO] parser/ Add 'if's in 'block'().", this.token);
+			printDebug("^^^^^^", this.token_i, this.tokens.length);
 			exit(1); // <= remove this line
 			this.next();
 		}
@@ -625,33 +639,38 @@ class BirraParser {
 	}
 
 	printAST(ast, root = true, sep_n = 0) {
-		if(root) console.debug("[BirraParser] AST:");
+		if(root) printDebug("[BirraParser] AST:");
 
 		const endl = "\n";
 		const sep = "    ";
 		
 		switch(ast.type) {
 			case "BINARY_OP":
-				console.debug(sep.repeat(sep_n) + "BINARY_OP: " + ast.operator);
+				printDebug(sep.repeat(sep_n) + "BINARY_OP: " + ast.operator);
 				this.printAST(ast.left, false, sep_n + 1);
 				this.printAST(ast.right, false, sep_n + 1);
 				break;
+			
+			case "UNARY_OP":
+				printDebug(sep.repeat(sep_n) + "UNARY_OP: " + ast.operator);
+				this.printAST(ast.value, false, sep_n + 1);
+				break;
 
 			case "VARIABLE":
-				console.debug(sep.repeat(sep_n) + "VARIABLE: " + ast.value);
+				printDebug(sep.repeat(sep_n) + "VARIABLE: " + ast.value);
 				break;
 			
 			case "NUMBER":
-				console.debug(sep.repeat(sep_n) + "NUMBER: " + ast.value);
+				printDebug(sep.repeat(sep_n) + "NUMBER: " + ast.value);
 				break;
 			
 			case "ASSIGNMENT":
-				console.debug(sep.repeat(sep_n) + "ASSIGNMENT: " + ast.name);
+				printDebug(sep.repeat(sep_n) + "ASSIGNMENT: " + ast.name);
 				this.printAST(ast.value, false, sep_n + 1);
 				break;
 			
 			case "BLOCK": {
-				console.debug(sep.repeat(sep_n) + "BLOCK:");
+				printDebug(sep.repeat(sep_n) + "BLOCK:");
 
 				for(let i = 0; i < ast.statements.length; i++) {
 					this.printAST(ast.statements[i], false, sep_n + 1);
@@ -659,6 +678,11 @@ class BirraParser {
 
 				break;
 			}
+
+			default: {
+				printDebug("parser() unhandled \"", ast.type, "\".");
+				break;
+			};
 		}
 	}
 }
@@ -719,8 +743,8 @@ function main(argv) {
 			scriptArgv.push(arg);
 		} else {
 			if (arg.startsWith("-")) {
-				console.log("The interpreter can't handle argument \"" + arg + 
-							'".');
+				console.error(	"The interpreter doesn't knows how to " +
+								"handle argument \"" + arg + "\".");
 				return exit(1);
 			}
 
