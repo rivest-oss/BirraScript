@@ -1,3 +1,5 @@
+// [TODO] Add left parse, instead of the current one.
+
 "use strict";
 const VERSION = "0.1.0";
 
@@ -7,6 +9,7 @@ const processWrite = (...args) => process.stdout.write(...args);
 const exit = process.exit;
 let processOnStdin = () => {}; // Do this.
 const processArgv = process.argv.slice(2);
+const processEnv = process.env;
 
 const printDebug = (...args) => {
 	console.debug("\x1b[5m\x1b[45m\x1b[97m[DEBUG]\x1b[0m", ...args);
@@ -37,12 +40,14 @@ const BIRRA_OPERATORS = [
 	"+",
 	"-",
 	"*",
+	"**",
 	"/",
 	"++",
 	"--",
 	"+=",
 	"-=",
 	"*=",
+	"**=",
 	"/=",
 
 	"~",
@@ -528,18 +533,16 @@ class BirraParser {
 		};
 	}
 
-	binaryOp(operators, cb) {
-		let left = cb();
+	binaryOp(operator, callback) {
+		let left = callback(), shouldBack = true;
+
 		this.next();
 
-		while(
-			operators
-				.map(x => this.accept("OPERATOR", x))
-				.some(x => x)
-		) {
-			const operator = this.token.value;
+		while(this.accept("OPERATOR", operator)) {
+			shouldBack = false;
+
 			this.next();
-			const right = this.binaryOp(operators, cb);
+			const right = this.binaryOp(operator, callback);
 
 			left = {
 				type: "BINARY_OP",
@@ -549,11 +552,20 @@ class BirraParser {
 			};
 		}
 
+		if(shouldBack) this.back();
 		return left;
 	}
 
+	exponent() { return this.binaryOp("**", () => this.factor()); }
+	multiplication() { return this.binaryOp("*", () => this.exponent()); }
+	division() { return this.binaryOp("/", () => this.multiplication()); }
+	addition() { return this.binaryOp("+", () => this.division()); }
+	subtraction() { return this.binaryOp("-", () => this.addition()); }
+
 	expression() {
-		return this.binaryOp([ "+", "-" ], () => this.factor());
+		const ret = this.subtraction();
+		this.next();
+		return ret;
 	}
 
 	// `modus` may be "LET", "CONST", et cetera.
@@ -666,7 +678,7 @@ class BirraParser {
 		return this.block(true);
 	}
 
-	printAST(ast, root = true, sep_n = 0) {
+	printASTAsTree(ast, root = true, sep_n = 0) {
 		if(root) printDebug("[BirraParser] AST:");
 
 		const endl = "\n";
@@ -675,13 +687,13 @@ class BirraParser {
 		switch(ast.type) {
 			case "BINARY_OP":
 				printDebug(sep.repeat(sep_n) + "BINARY_OP: " + ast.operator);
-				this.printAST(ast.left, false, sep_n + 1);
-				this.printAST(ast.right, false, sep_n + 1);
+				this.printASTAsTree(ast.left, false, sep_n + 1);
+				this.printASTAsTree(ast.right, false, sep_n + 1);
 				break;
 			
 			case "UNARY_OP":
 				printDebug(sep.repeat(sep_n) + "UNARY_OP: " + ast.operator);
-				this.printAST(ast.value, false, sep_n + 1);
+				this.printASTAsTree(ast.value, false, sep_n + 1);
 				break;
 
 			case "VARIABLE":
@@ -694,18 +706,18 @@ class BirraParser {
 			
 			case "ASSIGNMENT":
 				printDebug(sep.repeat(sep_n) + "ASSIGNMENT: " + ast.name);
-				this.printAST(ast.value, false, sep_n + 1);
+				this.printASTAsTree(ast.value, false, sep_n + 1);
 				break;
 			
 			case "BLOCK": {
 				printDebug(sep.repeat(sep_n) + "BLOCK:");
 
 				for(let i = 0; i < ast.statements.length; i++) {
-					this.printAST(ast.statements[i], false, sep_n + 1);
+					this.printASTAsTree(ast.statements[i], false, sep_n + 1);
 				}
 
 				break;
-			}
+			};
 
 			default: {
 				printDebug("parser() unhandled \"", ast.type, "\":", ast);
@@ -713,9 +725,71 @@ class BirraParser {
 			};
 		}
 	}
+
+	printASTAsCode(ast, root = true) {
+		const endl = "\n";
+
+		if(root) {
+			printDebug(	"[BirraParser] AST:" +
+						endl +
+						this.printASTAsCode(ast, false));
+			return;
+		}
+
+		switch(ast.type) {
+			case "NUMBER": return ast.value.toString();
+			case "VARIABLE": return ast.value;
+			case "ASSIGNMENT": return	(ast.modus.toLowerCase() +
+										" " +
+										ast.name +
+										" = " +
+										this.printASTAsCode(ast.value, false));
+
+			case "UNARY_OP":
+				return	("(" + ast.operator +
+						this.printASTAsCode(ast.value, false) + ")");
+				
+			case "BINARY_OP": {
+				let str = "";
+
+				str += "(" + this.printASTAsCode(ast.left, false);
+				str += " " + ast.operator + " ";
+				str += this.printASTAsCode(ast.right, false) + ")";
+
+				return str;
+			};
+
+			case "BLOCK": {
+				let str = "";
+
+				for(const statement of ast.statements) {
+					str += this.printASTAsCode(statement, false);
+					str += endl;
+				}
+
+				return str;
+			};
+
+			default:
+				printDebug("parser() unhandled \"", ast.type, "\":", ast);
+				return "UNKNOWN";
+		}
+	}
+
+	printAST(envVar, ast) {
+		let mode = "tree";
+
+		if(typeof envVar === "string") {
+			if(parseInt(envVar) === 1) mode = "code";
+			if(envVar.toLowerCase() === "true") mode = "code";
+		}
+
+		if(mode === "tree") this.printASTAsTree(ast, true);
+		if(mode === "code") this.printASTAsCode(ast, true);
+	}
 }
 
-function handleScriptFile(scriptFile, scriptArgv) {
+function handleScriptFile(env, scriptFile, scriptArgv) {
 	fs.readFile(scriptFile, (err, buff) => {
 		if (err) {
 			console.error("Couldn't read the script:", err);
@@ -729,13 +803,13 @@ function handleScriptFile(scriptFile, scriptArgv) {
 		birraLexer.printLexerTokens(tokens);
 
 		const ast = birraParser.parse(tokens);
-		birraParser.printAST(ast);
+		birraParser.printAST(env.AST_AS_CODE, ast);
 	});
 }
 
 class BirraREPL {
 	static endl = "\n";
-	static handle() {
+	static handle(env, scriptArgv) {
 		const birraLexer = new BirraLexer();
 		const birraParser = new BirraParser();
 
@@ -747,7 +821,7 @@ class BirraREPL {
 			birraLexer.printLexerTokens(tokens);
 
 			const ast = birraParser.parse(tokens);
-			birraParser.printAST(ast);
+			birraParser.printAST(env.AST_AS_CODE, ast);
 
 			BirraREPL.showInput();
 		};
@@ -762,7 +836,7 @@ class BirraREPL {
 	}
 }
 
-function main(argv) {
+function main(env, argv) {
 	let scriptFile = false,
 		scriptArgv = [];
 
@@ -781,10 +855,10 @@ function main(argv) {
 	}
 
 	if (scriptFile === false) {
-		BirraREPL.handle(scriptArgv);
+		BirraREPL.handle(env, scriptArgv);
 	} else {
-		handleScriptFile(scriptFile, scriptArgv);
+		handleScriptFile(env, scriptFile, scriptArgv);
 	}
 }
 
-main(processArgv);
+main(processEnv, processArgv);
