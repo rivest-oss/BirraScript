@@ -430,6 +430,25 @@ class BirraLexer {
 }
 
 class BirraParser {
+	constructor() {
+		this.assignmentOperators = [
+			"=", "+=", "-=", "*=", "/=", "%=", "**=",
+			"&=", "|=", "^=", "~=",
+			"&&=", "||=", "^^=",
+			"<<=", ">>=",
+		];
+
+		this.binaryOperators = [
+			"**", "*", "/", "%", "+", "-",
+			"<<", ">>",
+			"<>", "<", "<=", ">", ">=", "==", "!=",
+			"&", "^", "|", "&&", "^^", "||",
+			...(this.assignmentOperators),
+		];
+
+		this.unaryOperators = [ "~", "!", "++", "--", "+", "-" ];
+	}
+
 	clear(tokens) {
 		this.tokens = tokens;
 		this.token_i = 0;
@@ -506,9 +525,7 @@ class BirraParser {
 		if(this.accept("VARIABLE"))
 			return token;
 
-		const unaryOperators = [ "~", "!", "++", "--", "+", "-" ];
-
-		if(	unaryOperators
+		if(	this.unaryOperators
 				.map(x => this.accept("OPERATOR", x))
 				.some(x => x)
 		) {
@@ -562,22 +579,15 @@ class BirraParser {
 	}
 
 	expression() {
-		const operators = [
-			"**", "*", "/", "%", "+", "-",
-			"<<", ">>",
-			"<>", "<", "<=", ">", ">=", "==", "!=",
-			"&", "^", "|", "&&", "^^", "||",
-		];
-
 		const precedenceCallback = operatorI => {
 			const callback = (operatorI === 0)
 				? (() => this.factor())
 				: (() => precedenceCallback(operatorI - 1));
 			
-			return this.binaryOp(operators[operatorI], callback);
+			return this.binaryOp(this.binaryOperators[operatorI], callback);
 		};
 
-		const result = precedenceCallback(operators.length - 1);
+		const result = precedenceCallback(this.binaryOperators.length - 1);
 		this.next()
 		return result;
 	}
@@ -587,36 +597,42 @@ class BirraParser {
 		const variable = {
 			type: "ASSIGNMENT",
 			modus,
+			operator: false,
 			value: false,
-			continues: false,
 		};
 
-		variable.name = this.expect("VARIABLE").value;
-		this.next();
+		const expr = this.expression();
 
-		if(
-			this.accept("OPERATOR", "=") ||
-			this.accept("OPERATOR", ":")
-		) {
-			this.next();
-			variable.value = this.expression();
-
-			if(variable.value === false) {
-				console.error(	"Unexpected EOF when assigning variable \"" +
-								variable.name + "\" at " +
-								(this.token.row + 1) + ":" +
-								(this.token.column + 1));
-				exit(1);
-			}
+		if(expr.type === "VARIABLE") {
+			variable.name = expr.value;
+			return variable;
 		}
 
-		if(this.accept("OPERATOR", ","))
-			variable.continues = true;
+		if(expr.type === "BINARY_OP") {
+			if(	this.assignmentOperators
+					.map(x => expr.operator === x)
+					.some(x => x)
+			) {
+				variable.operator = expr.operator;
+				variable.name = expr.left;
+				variable.value = expr.right;
+				
+				return variable;
+			}
 
-		return variable;
+			console.error(	"Unexpected",
+							"\"" + expr.operator + "\"",
+							"when expecting ASSIGNMENT OPERATOR.");
+			exit(1);
+		}
+
+		console.error(	"Unexpected",
+						"\"" + expr.type + "\"",
+						"when expecting VARIABLE or ASSIGNMENT.");
+		exit(1);
 	}
 
-	block(root = false) {
+	block(parent = false) {
 		const block = {
 			type: "BLOCK",
 			statements: [],
@@ -635,11 +651,8 @@ class BirraParser {
 				let continues = true;
 				while(continues) {
 					this.next();
-
-					const variable = this.assignment("LET");
-					block.statements.push(variable);
-
-					continues = variable.continues;
+					block.statements.push(this.assignment("LET"));
+					continues = this.accept("OPERATOR", ",");
 				};
 
 				continue;
@@ -650,11 +663,8 @@ class BirraParser {
 				let continues = true;
 				while(continues) {
 					this.next();
-
-					const variable = this.assignment("CONST");
-					block.statements.push(variable);
-
-					continues = variable.continues;
+					block.statements.push(this.assignment("CONST"));
+					continues = this.accept("OPERATOR", ",");
 				};
 
 				continue;
@@ -666,7 +676,7 @@ class BirraParser {
 			}
 
 			if(this.accept("EOF")) {
-				if(root) {
+				if(parent) {
 					break;
 				} else {
 					printDebug("parser/ WHAT!? EOF HERE!?");
@@ -719,7 +729,8 @@ class BirraParser {
 				break;
 			
 			case "ASSIGNMENT":
-				printDebug(sep.repeat(sep_n) + "ASSIGNMENT: " + ast.name);
+				printDebug(sep.repeat(sep_n) + "ASSIGNMENT: ");
+				this.printASTAsTree(ast.name, false, sep_n + 1);
 				this.printASTAsTree(ast.value, false, sep_n + 1);
 				break;
 			
@@ -753,11 +764,19 @@ class BirraParser {
 		switch(ast.type) {
 			case "NUMBER": return ast.value.toString();
 			case "VARIABLE": return ast.value;
-			case "ASSIGNMENT": return	(ast.modus.toLowerCase() +
-										" " +
-										ast.name +
-										" = " +
-										this.printASTAsCode(ast.value, false));
+
+			case "ASSIGNMENT": {
+				let str = "";
+				str += ast.modus.toLowerCase() + " ";
+				str += this.printASTAsCode(ast.name, false);
+				
+				if(ast.value !== false) {
+					str += " " + ast.operator + " ";
+					str += this.printASTAsCode(ast.value, false);
+				}
+
+				return str;
+			};
 
 			case "UNARY_OP":
 				return	("(" + ast.operator +
@@ -783,6 +802,8 @@ class BirraParser {
 
 				return str;
 			};
+
+			case undefined: return ast.toString();
 
 			default:
 				printDebug("parser() unhandled \"", ast.type, "\":", ast);
