@@ -283,6 +283,7 @@ class BirraLexer {
 			"fn", "return",
 			"pub", "static",
 			"then", "else", "do", "end",
+			"extends", "override",
 		].includes(word);
 
 		this.tokens.push({
@@ -561,6 +562,7 @@ class BirraParser {
 			type: "ASSIGNMENT",
 			modus,
 			value: false,
+			continues: false,
 		};
 
 		variable.name = this.expect("VARIABLE").value;
@@ -582,7 +584,8 @@ class BirraParser {
 			}
 		}
 
-		if(this.accept("OPERATOR", ",")) this.next();
+		if(this.accept("OPERATOR", ","))
+			variable.continues = true;
 
 		return variable;
 	}
@@ -603,15 +606,31 @@ class BirraParser {
 
 			// let x = y
 			if(this.accept("KEYWORD", "let")) {
-				this.next();
-				block.statements.push(this.assignment("LET"));
+				let continues = true;
+				while(continues) {
+					this.next();
+
+					const variable = this.assignment("LET");
+					block.statements.push(variable);
+
+					continues = variable.continues;
+				};
+
 				continue;
 			}
 
 			// const x = y
 			if(this.accept("KEYWORD", "const")) {
-				this.next();
-				block.statements.push(this.assignment("CONST"));
+				let continues = true;
+				while(continues) {
+					this.next();
+
+					const variable = this.assignment("CONST");
+					block.statements.push(variable);
+
+					continues = variable.continues;
+				};
+
 				continue;
 			}
 
@@ -689,7 +708,7 @@ class BirraParser {
 			}
 
 			default: {
-				printDebug("parser() unhandled \"", ast.type, "\".");
+				printDebug("parser() unhandled \"", ast.type, "\":", ast);
 				break;
 			};
 		}
