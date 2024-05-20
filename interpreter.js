@@ -419,13 +419,21 @@ class BirraLexer {
 		return this.tokens;
 	}
 
-	printLexerTokens(tokens) {
-		if (tokens < 0) return -1;
+	printLexerTokens(envVar, tokens) {
+		let shouldPrint = false;
+		if(typeof envVar === "string") {
+			if(parseInt(envVar) === 1) shouldPrint = true;
+			if(envVar.toLowerCase() === "true") shouldPrint = true;
+		}
 
-		printDebug("[BirraLexer] Tokens:");
+		if(shouldPrint) {
+			if (tokens < 0) return -1;
 
-		for (const token of tokens) {
-			printDebug(token.type.padStart(8, " ") + ": " + token.value);
+			printDebug("[BirraLexer] Tokens:");
+
+			for (const token of tokens) {
+				printDebug(token.type.padStart(8, " ") + ": " + token.value);
+			}
 		}
 	}
 }
@@ -552,6 +560,9 @@ class BirraParser {
 
 			return expr;
 		}
+
+		if(this.accept("OPERATOR", "["))
+			return this.array();
 		
 		this.expect("NUMBER or VARIABLE");
 	}
@@ -602,6 +613,7 @@ class BirraParser {
 
 		const result = precedenceCallback(this.binaryOperators.length - 1);
 		this.next()
+
 		return result;
 	}
 
@@ -641,6 +653,29 @@ class BirraParser {
 		this.errorStr =	"Unexpected \"" + expr.type + "\"" +
 						"when expecting VARIABLE or ASSIGNMENT";
 		return false;
+	}
+
+	array() {
+		const arr = {
+			type: "ARRAY",
+			elements: [],
+		};
+
+		while(true) {
+			this.next();
+
+			if(this.accept("OPERATOR", "]"))
+				break;
+
+			arr.elements.push(this.expression());
+			
+			if(this.accept("OPERATOR", ","))
+				continue;
+			
+			break;
+		}
+
+		return arr;
 	}
 
 	block(parent = false) {
@@ -792,6 +827,16 @@ class BirraParser {
 				break;
 			};
 
+			case "ARRAY": {
+				printDebug(sep.repeat(sep_n) + "ARRAY:");
+
+				for(let i = 0; i < ast.elements.length; i++) {
+					this.printASTAsTree(ast.elements[i], false, sep_n + 1);
+				}
+
+				break;
+			};
+
 			default: {
 				printDebug("parser() unhandled \"", ast.type, "\":", ast);
 				break;
@@ -853,6 +898,20 @@ class BirraParser {
 				return str;
 			};
 
+			case "ARRAY": {
+				let str = "[" + endl;
+
+				for(const element of ast.elements) {
+					str += "\t";
+					str += this.printASTAsCode(element, false);
+					str += "," + endl;
+				}
+
+				str += "]";
+
+				return str;
+			};
+
 			case undefined: return ast.toString();
 
 			default:
@@ -885,7 +944,7 @@ function handleScriptFile(env, scriptFile, scriptArgv) {
 		const birraParser = new BirraParser();
 
 		const tokens = birraLexer.parse(buff.toString("utf-8"));
-		birraLexer.printLexerTokens(tokens);
+		birraLexer.printLexerTokens(env.PRINT_TOKENS, tokens);
 
 		const ast = birraParser.parse(tokens);
 		birraParser.printAST(env.AST_AS_CODE, ast);
@@ -903,7 +962,7 @@ class BirraREPL {
 
 		processOnStdin = (str) => {
 			const tokens = birraLexer.parse(str);
-			birraLexer.printLexerTokens(tokens);
+			birraLexer.printLexerTokens(env.PRINT_TOKENS, tokens);
 
 			const ast = birraParser.parse(tokens);
 			birraParser.printAST(env.AST_AS_CODE, ast);
