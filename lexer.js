@@ -6,7 +6,7 @@ class BirraLexer {
 	reset(src) {
 		this.src = src;
 		this.srcPtr = 0;
-		this.lastLine = "";
+		this.currLine = src.split(/\n/g)[0];
 		this.currRow = 1;
 		this.currColumn = 1;
 		this.currChar = src.charAt(0) ?? "\0";
@@ -14,40 +14,49 @@ class BirraLexer {
 	}
 
 	errorAtCurrLine(msg) {
-		console.error(this.lastLine);
-		console.error(" ".repeat(this.currColumn - 1) + "^");
+		console.error(this.currLine);
+		console.error(" ".repeat(Math.max(this.currColumn - 1, 0)) + "^");
 		console.error("");
 		console.error(msg, "at", this.currRow + ":" + this.currColumn);
 		return -1;
 	}
 
 	next() {
-		if(this.srcPtr >= this.src.length) return -1;
-
-		const c = this.src.charAt(this.srcPtr);
-		this.srcPtr++;
-
-		if(c === "\n") {
-			this.currRow++;
-			this.currColumn = 1;
-			this.lastLine = "";
-			this.currChar = c;
-			return 0;
+		if(this.srcPtr >= this.src.length) {
+			this.currChar = "\0";
+			return -1;
 		}
 
-		this.currColumn++;
-		this.lastLine = (this.lastLine + c).slice(-40);
-		this.currChar = c;
+		this.srcPtr++;
+		this.currChar = this.src.charAt(this.srcPtr);
+
+		const backCharacter = this.src.charAt(this.srcPtr - 1) ?? this.src.charAt(0);
+
+		if(backCharacter === "\n") {
+			this.currColumn = 1;
+			this.currRow++;
+		} else {
+			this.currColumn++;
+		}
+
+		this.currLine = this.src.split(/\n/g)[this.currRow - 1];
+
 		return 0;
 	}
 
 	back() {
 		this.srcPtr--;
-		if(this.srcPtr < 0) return -1;
-		if(this.currColumn > 1) this.currColumn--;
+		if(this.srcPtr < 0) this.srcPtr = 0;
 
 		this.currChar = this.src.charAt(this.srcPtr);
-		this.lastLine = (this.lastLine + c).slice(0, -1);
+
+		if(this.currChar === "\n") {
+			this.currRow--;
+			this.currLine = this.src.split(/\n/g)[this.currRow - 1];
+			this.currColumn = this.currLine.length - 1;
+		} else {
+			this.currColumn--;
+		}
 
 		return 0;
 	}
@@ -140,13 +149,9 @@ class BirraLexer {
 	readOperator() {
 		let op = "";
 
-		while(this.isOperator()) {
-			if(this.isOperator(op + this.currChar)) {
-				op += this.currChar;
-				this.next();
-			}
-
-			break;
+		while(this.isOperator(op + this.currChar)) {
+			op += this.currChar;
+			this.next();
 		}
 
 		return op;
@@ -166,15 +171,79 @@ class BirraLexer {
 	parse(src) {
 		this.reset(src);
 
-		// [TODO] Comments.
-		let onComment = false, comment = "";
+		let isComment = false, commentCollection = "";
 
-		while(this.currChar !== "\0") {
+		while(this.currChar.charCodeAt(0)) {
+			if(isComment !== false) {
+				commentCollection = (commentCollection + this.currChar);
+				commentCollection = commentCollection.slice(-(isComment.length));
+
+				if(typeof isComment === "string") {
+					if(commentCollection === isComment) {
+						isComment = false;
+						commentCollection = "";
+					}
+				} else {
+					if(this.currChar === "\n") {
+						isComment = false;
+						commentCollection = "";
+					}
+				}
+
+				this.next();
+				continue;
+			}
+			
 			if(this.isWhitespace()) {
 				this.next();
 				continue;
 			}
 
+			let commentStr = this.currChar;
+
+			// Detect "#" comments.
+			if(commentStr === "#") {
+				isComment = true;
+				continue;
+			}
+
+			this.next();
+			commentStr += this.currChar;
+
+			// Detect "/" comments.
+			if(commentStr === "//") {
+				isComment = true;
+				continue;
+			}
+
+			// Detect "/*" comments.
+			if(commentStr === "/*") {
+				isComment = "*/";
+				continue;
+			}
+
+			// Detect "--" coments.
+			if(commentStr === "--") {
+				this.next();
+				commentStr += this.currChar;
+				this.next();
+				commentStr += this.currChar;
+
+				// Detect "--[[" comments.
+				if(commentStr === "--[[") {
+					isComment = "--]]";
+					continue;
+				} else {
+					this.back();
+					this.back();
+					isComment = true;
+					continue;
+				}
+			}
+
+			this.back();
+
+			// Read string.
 			if((this.currChar === "\"") || (this.currChar === "'")) {
 				const breaker = this.currChar;
 				this.next();
@@ -190,6 +259,7 @@ class BirraLexer {
 				continue;
 			}
 
+			// Read number or dot operator.
 			if(this.isNumber()) {
 				const no = this.readNumber();
 				
@@ -201,6 +271,7 @@ class BirraLexer {
 				continue;
 			}
 
+			// Read operator.
 			if(this.isOperator()) {
 				const op = this.readOperator();
 
@@ -212,15 +283,23 @@ class BirraLexer {
 				continue;
 			}
 
-			const variable = this.readVariable();
+			// Read variables/keywords.
+			if(this.isVariable()) {
+				const variable = this.readVariable();
 
-			this.tokens.push({
-				type: this.isKeyword(variable) ? "KEYWORD" : "VARIABLE",
-				value: variable,
-			});
+				this.tokens.push({
+					type: this.isKeyword(variable) ? "KEYWORD" : "VARIABLE",
+					value: variable,
+				});
 
-			continue;
+				continue;
+			}
+
+			this.errorAtCurrLine("Unexpected token '" + this.currChar + "' (" + this.currChar.charCodeAt(0) + ").");
+			return -1;
 		}
+
+		return this.tokens;
 	}
 }
 

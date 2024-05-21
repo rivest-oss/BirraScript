@@ -17,10 +17,10 @@ function birraHashString(str) {
 
 function birraPrintDebug(...args) {
 	for(let i = 0; i < args.length; i++) {
-		if(args[i].startsWith("@")) {
-			args[i] = args[i].slice(2);
+		if(String(args[i]).startsWith("@")) {
+			args[i] = args[i].slice(1);
 			let m = birraHashString(args[i]);
-			let color = "\x1b[30m\x1b[48;";
+			let color = "\x1b[30m\x1b[48;2;";
 
 			color += Math.floor(128 + ((m / 0x10000) * 128)) + ";";
 			m ^= 0xffff;
@@ -45,6 +45,7 @@ const BIRRA_OPERATORS = {
 	"!=": "NE",
 
 	"=": "ASSIGN",
+	".": "PERIOD",
 	",": "COMMA",
 	":": "COLON",
 	";": "SEMICOLON",
