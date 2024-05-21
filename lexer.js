@@ -59,7 +59,7 @@ class BirraLexer {
 	isNumber(character = this.currChar) {
 		// Between '0' and '9', or '.'.
 		return	(((character.charCodeAt(0) >= 0x30) &&
-				(character.codeAt(0) <= 0x39)) ||
+				(character.charCodeAt(0) <= 0x39)) ||
 				(character === "."));
 	}
 
