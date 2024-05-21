@@ -791,6 +791,25 @@ class BirraParser {
 		return forLoop;
 	}
 
+	whileLoop() {
+		this.next();
+
+		const whileLoop = {
+			type: "WHILE",
+			check: false,
+			body: false,
+		};
+
+		whileLoop.check = this.parseLoopStatements();
+
+		this.expect("KEYWORD", "do");
+		this.next();
+
+		whileLoop.body = this.block(true);
+
+		return whileLoop;
+	}
+
 	block(child = false) {
 		const block = {
 			type: "BLOCK",
@@ -801,6 +820,12 @@ class BirraParser {
 			// for
 			if(this.accept("KEYWORD", "for")) {
 				block.statements.push(this.forLoop());
+				continue;
+			}
+
+			// while
+			if(this.accept("KEYWORD", "while")) {
+				block.statements.push(this.whileLoop());
 				continue;
 			}
 
@@ -1009,6 +1034,17 @@ class BirraParser {
 				this.printASTAsTree(ast.body, false, sep_n + 2);
 			};
 
+			case "WHILE": {
+				printDebug(sep.repeat(sep_n) + "WHILE:");
+
+				for(let i = 0; i < ast.check.length; i++)
+					this.printASTAsTree(ast.check[i], false, sep_n + 1);
+
+				printDebug(sep.repeat(sep_n + 1) + "BODY:");
+
+				this.printASTAsTree(ast.body, false, sep_n + 2);
+			};
+
 			case undefined: return ast.toString();
 
 			default: {
@@ -1126,6 +1162,23 @@ class BirraParser {
 				for(let i = 0; i < ast.post.length; i++) {
 					str += this.printASTAsCode(ast.post[i], false);
 					if(i !== (ast.post.length - 1)) str += ", ";
+				}
+
+				str += ") {" + endl;
+
+				str += this.printASTAsCode(ast.body, false);
+
+				str += "}" + endl;
+
+				return str;
+			};
+
+			case "WHILE": {
+				let str = "while(";
+				
+				for(let i = 0; i < ast.check.length; i++) {
+					str += this.printASTAsCode(ast.check[i], false);
+					if(i !== (ast.check.length - 1)) str += ", ";
 				}
 
 				str += ") {" + endl;
