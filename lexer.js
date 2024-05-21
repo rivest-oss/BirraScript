@@ -81,7 +81,7 @@ class BirraLexer {
 		return Birra.KEYWORDS.includes(s);
 	}
 
-	readOperator(s = this.currChar) {
+	isOperator(s = this.currChar) {
 		return (Birra.OPERATORS[s] !== undefined);
 	}
 
@@ -109,24 +109,24 @@ class BirraLexer {
 
 		while(true) {
 			if(this.isNumber()) {
-				if(c === "." && no.includes(".")) {
+				if(this.currChar === "." && no.includes(".")) {
 					this.errorAtCurrLine("Unexpected '.' in number declaration");
 					return -1;
 				}
 
-				no += c;
+				no += this.currChar;
 				this.next();
 				continue;
 			}
 
 			if((this.currChar === "x") && (no === "0")) {
-				no += c;
+				no += this.currChar;
 				this.next();
 				continue;
 			}
 
 			if((this.currChar === "b") && (no === "0")) {
-				no += c;
+				no += this.currChar;
 				this.next();
 				continue;
 			}
