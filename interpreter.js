@@ -285,7 +285,7 @@ class BirraLexer {
 		const isKeyword = [
 			"let", "const",
 			"namespace", "class",
-			"if", "while", "for",
+			"if", "while", "for", "after",
 			"fn", "function", "return",
 			"pub", "static",
 			"then", "else", "do", "end",
@@ -721,6 +721,76 @@ class BirraParser {
 		return fn;
 	}
 
+	parseLoopStatements() {
+		const statements = [];
+
+		if(this.accept("OPERATOR", ";")) {
+			this.next();
+			return statements;
+		}
+
+		if(this.accept("KEYWORD", "let")) this.next();
+
+		while(true) {
+			const expr = this.expression();
+
+			const assignment = this.assignment("LET", expr);
+			if(assignment === false)
+				this.errorStr = false;
+			
+			statements.push(assignment || expr);
+
+			if(this.accept("OPERATOR", ",")) {
+				this.next();
+				continue;
+			}
+
+			if(this.accept("OPERATOR", ";"))
+				this.next();
+
+			break;
+		}
+
+		return statements;
+	}
+
+	forLoop() {
+		this.next();
+
+		const forLoop = {
+			type: "FOR_LOOP",
+			pre: false,
+			check: false,
+			body: false,
+			post: false,
+		};
+
+		forLoop.pre = this.parseLoopStatements();
+
+		while(true) {
+			if(this.accept("KEYWORD", "while")) {
+				this.next();
+				forLoop.check = this.parseLoopStatements();
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "after")) {
+				this.next();
+				forLoop.post = this.parseLoopStatements();
+				continue;
+			}
+
+			break;
+		}
+
+		this.expect("KEYWORD", "do");
+		this.next();
+
+		forLoop.body = this.block(true);
+
+		return forLoop;
+	}
+
 	block(child = false) {
 		const block = {
 			type: "BLOCK",
@@ -730,7 +800,7 @@ class BirraParser {
 		while(this.token !== false) {
 			// for
 			if(this.accept("KEYWORD", "for")) {
-				block.statements.push(this.for_loop());
+				block.statements.push(this.forLoop());
 				continue;
 			}
 
@@ -783,7 +853,7 @@ class BirraParser {
 
 			if(this.accept("KEYWORD", "end")) {
 				this.next();
-				break;
+				return block;
 			}
 
 			if(this.accept("KEYWORD", "return")) {
@@ -794,20 +864,19 @@ class BirraParser {
 					value: this.expression(),
 				});
 
-				break;
+				continue;
 			}
 
 			if(this.accept("EOF")) {
 				if(child) {
-					break;
-				} else {
 					printDebug("parser/ WHAT!? EOF HERE!?");
 					exit(1);
+				} else {
+					return block;
 				}
 			}
 
 			if(this.accept("VARIABLE") || this.accept("NUMBER")) {
-
 				const expr = this.expression();
 
 				const assignment = this.assignment("LET", expr);
@@ -828,8 +897,6 @@ class BirraParser {
 			exit(1); // <= remove this line
 			this.next();
 		}
-
-		return block;
 	}
 
 	parse(tokens) {
@@ -918,6 +985,28 @@ class BirraParser {
 				}
 
 				break;
+			};
+
+			case "FOR_LOOP": {
+				printDebug(sep.repeat(sep_n) + "FOR:");
+				printDebug(sep.repeat(sep_n + 1) + "PRE:");
+
+				for(let i = 0; i < ast.pre.length; i++)
+					this.printASTAsTree(ast.pre[i], false, sep_n + 2);
+				
+				printDebug(sep.repeat(sep_n + 1) + "CHECK:");
+
+				for(let i = 0; i < ast.check.length; i++)
+					this.printASTAsTree(ast.check[i], false, sep_n + 2);
+
+				printDebug(sep.repeat(sep_n + 1) + "POST:");
+
+				for(let i = 0; i < ast.post.length; i++)
+					this.printASTAsTree(ast.post[i], false, sep_n + 2);
+
+				printDebug(sep.repeat(sep_n + 1) + "BODY:");
+
+				this.printASTAsTree(ast.body, false, sep_n + 2);
 			};
 
 			case undefined: return ast.toString();
@@ -1017,11 +1106,44 @@ class BirraParser {
 				return str;
 			};
 
+			case "FOR_LOOP": {
+				let str = "for(";
+				
+				for(let i = 0; i < ast.pre.length; i++) {
+					str += this.printASTAsCode(ast.pre[i], false);
+					if(i !== (ast.pre.length - 1)) str += ", ";
+				}
+
+				str += "; ";
+
+				for(let i = 0; i < ast.check.length; i++) {
+					str += this.printASTAsCode(ast.check[i], false);
+					if(i !== (ast.check.length - 1)) str += ", ";
+				}
+
+				str += "; ";
+
+				for(let i = 0; i < ast.post.length; i++) {
+					str += this.printASTAsCode(ast.post[i], false);
+					if(i !== (ast.post.length - 1)) str += ", ";
+				}
+
+				str += ") {" + endl;
+
+				str += this.printASTAsCode(ast.body, false);
+
+				str += "}" + endl;
+
+				return str;
+			};
+
 			case undefined: return ast.toString();
 
-			default:
-				printDebug("parser() unhandled \"", ast.type, "\":", ast);
-				return "UNKNOWN";
+			default: {
+				const x = Math.random().toFixed(10);
+				printDebug(x, "parser() unhandled \"", ast.type, "\":", ast);
+				return "UNKNOWN:" + x;
+			};
 		}
 	}
 

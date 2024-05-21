@@ -19,7 +19,7 @@ diccionario = {
 		end
 }
 
-for i = 0 while i < 5 do
+for i = 0 while i < 5 after i++ do
 	# bla bla
 	i++
 end
