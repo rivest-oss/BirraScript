@@ -97,6 +97,13 @@ const BIRRA_OPERATORS = {
 	"}": "R_BRACES",
 };
 
+let i = 0;
+for(const key of Object.keys(BIRRA_OPERATORS)) {
+	BIRRA_OPERATORS[BIRRA_OPERATORS[key]] = BIRRA_OPERATORS[key];
+	BIRRA_OPERATORS[i] = BIRRA_OPERATORS[key];
+	i++;
+}
+
 const BIRRA_KEYWORDS = [
 	"let", "const",
 	"namespace", "class",
@@ -107,10 +114,6 @@ const BIRRA_KEYWORDS = [
 	"extends", "override",
 	"false", "true",
 ];
-
-for(const key of Object.keys(BIRRA_OPERATORS)) {
-	BIRRA_OPERATORS[BIRRA_OPERATORS[key]] = BIRRA_OPERATORS[key];
-}
 
 module.exports = {
 	VERSION: BIRRA_VERSION,

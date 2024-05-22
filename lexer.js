@@ -243,6 +243,8 @@ class BirraLexer {
 
 			this.back();
 
+			const row = this.currRow, column = this.currColumn;
+
 			// Read string.
 			if((this.currChar === "\"") || (this.currChar === "'")) {
 				const breaker = this.currChar;
@@ -254,6 +256,7 @@ class BirraLexer {
 				this.tokens.push({
 					type: "STRING",
 					value: str,
+					row, column,
 				});
 
 				continue;
@@ -266,6 +269,7 @@ class BirraLexer {
 				this.tokens.push({
 					type: (no === ".") ? "OPERATOR" : "NUMBER",
 					value: no,
+					row, column,
 				});
 
 				continue;
@@ -278,6 +282,7 @@ class BirraLexer {
 				this.tokens.push({
 					type: "OPERATOR",
 					value: op,
+					row, column,
 				});
 
 				continue;
@@ -290,6 +295,7 @@ class BirraLexer {
 				this.tokens.push({
 					type: this.isKeyword(variable) ? "KEYWORD" : "VARIABLE",
 					value: variable,
+					row, column,
 				});
 
 				continue;
@@ -298,6 +304,11 @@ class BirraLexer {
 			this.errorAtCurrLine("Unexpected token '" + this.currChar + "' (" + this.currChar.charCodeAt(0) + ").");
 			return -1;
 		}
+
+		this.tokens.push({
+			type: "EOF",
+			row: this.currRow, column: this.currColumn,
+		});
 
 		return this.tokens;
 	}
