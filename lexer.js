@@ -91,7 +91,7 @@ class BirraLexer {
 	}
 
 	isOperator(s = this.currChar) {
-		return (Birra.OPERATORS[s] !== undefined);
+		return Birra.OPERATORS.includes(s);
 	}
 
 	readString(breaker) {
@@ -308,7 +308,7 @@ class BirraLexer {
 				continue;
 			}
 
-			this.errorAtCurrLine("Unexpected token '" + this.currChar + "' (" + this.currChar.charCodeAt(0) + ").");
+			this.errorAtCurrLine("Unexpected token '" + this.currChar + "' (" + this.currChar.charCodeAt(0) + ")");
 			return -1;
 		}
 
