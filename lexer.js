@@ -292,8 +292,15 @@ class BirraLexer {
 			if(this.isVariable()) {
 				const variable = this.readVariable();
 
+				let type = "VARIABLE";
+				if(this.isKeyword(variable)) {
+					type = ((variable === "true") || (variable === "false"))
+						? "BOOLEAN"
+						: "KEYWORD";
+				}
+
 				this.tokens.push({
-					type: this.isKeyword(variable) ? "KEYWORD" : "VARIABLE",
+					type,
 					value: variable,
 					row, column,
 				});

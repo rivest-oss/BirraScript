@@ -35,6 +35,25 @@ function birraPrintDebug(...args) {
 	console.debug("\x1b[5m\x1b[45m\x1b[97m[DEBUG]\x1b[0m", ...(args));
 }
 
+const BIRRA_BINARY_OPERATORS_PRECEDENCE = [
+	"==", "<", ">", "<=", ">=", "<>", "!=",
+	"=", ".", ",", ":", ";", "?", "??",
+	"+", "-", "*", "**", "/", "%", "+=", "-=", "*=", "**=", "/=",
+	"&", "|", "^",
+	"&&", "||", "^^",
+	"~=", "&=", "&&=", "|=", "||=", "^=", "^^=",
+	"<<", ">>", "<<=", ">>=",
+	"(", ")", "[", "]", "{", "}",
+];
+
+for(let i = 0; i < BIRRA_BINARY_OPERATORS_PRECEDENCE.length; i++) {
+	BIRRA_BINARY_OPERATORS_PRECEDENCE[BIRRA_BINARY_OPERATORS_PRECEDENCE[i]] = i;
+}
+
+const BIRRA_UNARY_OPERATORS = [
+	"~", "!", "++", "--", "+", "-"
+];
+
 const BIRRA_OPERATORS = {
 	"==": "EQ",
 	"<": "LT",
@@ -119,5 +138,7 @@ module.exports = {
 	VERSION: BIRRA_VERSION,
 	printDebug: birraPrintDebug,
 	OPERATORS: BIRRA_OPERATORS,
+	UNARY_OPERATORS: BIRRA_UNARY_OPERATORS,
+	OPERATORS_PRECEDENCE: BIRRA_BINARY_OPERATORS_PRECEDENCE,
 	KEYWORDS: BIRRA_KEYWORDS,
 };
