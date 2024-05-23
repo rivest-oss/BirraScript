@@ -82,6 +82,8 @@ class BirraLexer {
 				// 'a' and 'z',
 				((character.charCodeAt(0) >= 0x61) &&
 				(character.charCodeAt(0) <= 0x7a)) ||
+				// or it's '_',
+				(character === "_") ||
 				// or greater than [DEL] (may be UTF-8).
 				(character.charCodeAt(0) > 0x7f));
 	}
