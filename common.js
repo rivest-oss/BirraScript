@@ -134,6 +134,7 @@ const BIRRA_KEYWORDS = [
 module.exports = {
 	VERSION: BIRRA_VERSION,
 	printDebug: birraPrintDebug,
+	randomFloat: () => Math.random(),
 
 	OPERATORS: BIRRA_OPERATORS,
 	OPERATORS_MAP: BIRRA_OPERATORS_MAP,

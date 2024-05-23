@@ -2,6 +2,116 @@
 
 const Birra = require("./common.js");
 
+const BIRRA_PARSER_BLOCK_TYPES = {
+	"ROOT": {
+		acceptPubDeclaration: false,
+		acceptStaticDeclaration: false,
+		acceptLetDeclaration: true,
+		acceptConstDeclaration: true,
+		acceptNamespace: true,
+		acceptClass: true,
+		acceptWhile: true,
+		acceptFor: true,
+		acceptIf: true,
+		acceptElse: false,
+		acceptEnd: false,
+		acceptBreak: false,
+		acceptContinue: false,
+		acceptReturn: false,
+		acceptEOF: true,
+	},
+	
+	"FUNCTION": {
+		acceptPubDeclaration: false,
+		acceptStaticDeclaration: false,
+		acceptLetDeclaration: true,
+		acceptConstDeclaration: true,
+		acceptNamespace: true,
+		acceptClass: true,
+		acceptWhile: true,
+		acceptFor: true,
+		acceptIf: true,
+		acceptElse: false,
+		acceptEnd: true,
+		acceptBreak: false,
+		acceptContinue: false,
+		acceptReturn: true,
+		acceptEOF: false,
+	},
+	
+	"WHILE": {
+		acceptPubDeclaration: false,
+		acceptStaticDeclaration: false,
+		acceptLetDeclaration: true,
+		acceptConstDeclaration: true,
+		acceptNamespace: true,
+		acceptClass: true,
+		acceptWhile: true,
+		acceptFor: true,
+		acceptIf: true,
+		acceptElse: false,
+		acceptEnd: true,
+		acceptBreak: true,
+		acceptContinue: true,
+		acceptReturn: false,
+		acceptEOF: false,
+	},
+	
+	"IF": {
+		acceptPubDeclaration: false,
+		acceptStaticDeclaration: false,
+		acceptLetDeclaration: true,
+		acceptConstDeclaration: true,
+		acceptNamespace: true,
+		acceptClass: true,
+		acceptWhile: true,
+		acceptFor: true,
+		acceptIf: true,
+		acceptElse: true,
+		acceptEnd: true,
+		acceptBreak: false,
+		acceptContinue: false,
+		acceptReturn: false,
+		acceptEOF: false,
+	},
+	
+	"NAMESPACE": {
+		acceptPubDeclaration: false,
+		acceptStaticDeclaration: false,
+		acceptLetDeclaration: true,
+		acceptConstDeclaration: true,
+		acceptNamespace: true,
+		acceptClass: true,
+		acceptWhile: true,
+		acceptFor: true,
+		acceptIf: true,
+		acceptElse: false,
+		acceptEnd: true,
+		acceptBreak: false,
+		acceptContinue: false,
+		acceptReturn: false,
+		acceptEOF: false,
+	},
+	
+	"CLASS": {
+		acceptPubDeclaration: true,
+		acceptStaticDeclaration: true,
+		acceptLetDeclaration: true,
+		acceptConstDeclaration: true,
+		acceptNamespace: false,
+		acceptClass: false,
+		acceptWhile: false,
+		acceptFor: false,
+		acceptIf: false,
+		acceptElse: false,
+		acceptEnd: true,
+		acceptBreak: false,
+		acceptContinue: false,
+		acceptReturn: false,
+		acceptEOF: false,
+	},
+};
+
 class BirraParser {
 	reset(src, tokens) {
 		this.src = src;
@@ -216,7 +326,7 @@ class BirraParser {
 		if(this.expect("OPERATOR", ")") < 0) return -1;
 		if(this.next() < 0) return -1;
 
-		func.body = this.resolveBlock(true, false);
+		func.body = this.resolveBlock("FUNCTION");
 		if(func.body < 0) return -1;
 
 		if(this.expect("KEYWORD", "end") < 0) return -1;
@@ -239,7 +349,7 @@ class BirraParser {
 		if((this.accept("KEYWORD", "then") === 0) || (this.accept("KEYWORD", "do") === 0)) {
 			if(this.next() < 0) return -1;
 
-			whileStatement.body = this.resolveBlock(true, true);
+			whileStatement.body = this.resolveBlock("WHILE");
 			if(whileStatement.body < 0) return -1;
 
 			if(this.expect("KEYWORD", "end") < 0) return -1;
@@ -329,7 +439,7 @@ class BirraParser {
 			return -1;
 		}
 
-		forStatement.body = this.resolveBlock(true, true);
+		forStatement.body = this.resolveBlock("WHILE");
 		if(forStatement.body < 0) return -1;
 
 		if(this.expect("KEYWORD", "end") < 0) return -1;
@@ -420,7 +530,7 @@ class BirraParser {
 				if(this.next() < 0) return -1;
 			}
 			
-			const block = this.resolveBlock(true, false, true);
+			const block = this.resolveBlock("IF");
 			if(block < 0) return -1;
 
 			statements.push({
@@ -456,159 +566,282 @@ class BirraParser {
 		return statements;
 	}
 
-	resolveBlock(allowEND, breakable, isIFBody = false) {
+	resolveCommaExpressions() {
 		const statements = [];
 
 		while(true) {
-			if(this.accept("KEYWORD", "let") === 0) {
-				if(this.next() < 0) return -1;
-
-				while(true) {
-					const expression = this.resolveBinaryOp();
-					if(expression < 0) return -1;
-
-					const declaration = {
-						type: "DECLARATION",
-						modus: "LET",
-						expression,
-					};
-
-					statements.push(declaration);
-
-					if(this.accept("OPERATOR", ",") === 0) {
-						if(this.next() < 0) return -1;
-						continue;
-					}
-
-					break;
-				}
-
-				continue;
-			}
-
-			if(this.accept("KEYWORD", "const") === 0) {
-				if(this.next() < 0) return -1;
-
-				while(true) {
-					const expression = this.resolveBinaryOp();
-					if(expression < 0) return -1;
-
-					const declaration = {
-						type: "DECLARATION",
-						modus: "CONST",
-						expression,
-					};
-
-					statements.push(declaration);
-
-					if(this.accept("OPERATOR", ",") === 0) {
-						if(this.next() < 0) return -1;
-						continue;
-					}
-
-					break;
-				}
-
-				continue;
-			}
-
-			if(this.accept("KEYWORD", "while") === 0) {
-				const whileStatement = this.resolveWhile();
-				if(whileStatement < 0) return -1;
-
-				statements.push(whileStatement);
-
-				continue;
-			}
-
-			if(this.accept("KEYWORD", "for") === 0) {
-				const forStatement = this.resolveFor();
-				if(forStatement < 0) return -1;
-
-				statements.push(forStatement);
-
-				continue;
-			}
-
-			if(this.accept("KEYWORD", "if") === 0) {
-				const ifStatement = this.resolveIf();
-				if(ifStatement < 0) return -1;
-
-				statements.push(ifStatement);
-
-				continue;
-			}
-
-			if(isIFBody && (this.accept("KEYWORD", "else") === 0))
-				break;
-
-			if(this.accept("KEYWORD", "end") === 0) {
-				if(allowEND) break;
-
-				this.errorAtCurrToken("Unexpected \"end\" keyword");
-				return -1;
-			}
-
-			if(this.accept("KEYWORD", "break") === 0) {
-				if(breakable) {
-					statements.push(this.currToken);
-					if(this.next() < 0) return -1;
-
-					continue;
-				}
-
-				this.errorAtCurrToken("Unexpected \"break\" keyword");
-				return -1;
-			}
-
-			if(this.accept("KEYWORD", "continue") === 0) {
-				if(breakable) {
-					statements.push(this.currToken);
-					if(this.next() < 0) return -1;
-
-					continue;
-				}
-
-				this.errorAtCurrToken("Unexpected \"continue\" keyword");
-				return -1;
-			}
-
-			if(this.accept("KEYWORD", "return") === 0) {
-				if(allowEND === false) {
-					this.errorAtCurrToken("Unexpected \"return\" keyword");
-					return -1;
-				}
-
-				if(this.next() < 0) return -1;
-
-				const expression = this.resolveBinaryOp();
-				if(expression < 0) return -1;
-
-				statements.push({
-					type: "RETURN",
-					value: expression,
-				});
-
-				continue;
-			}
-
-			//Birra.printDebug("@[Parser.block] Goin' to end of loop:", this.currToken);
-
-			if(this.accept("EOF") === 0) {
-				// It must be root then.
-				if(allowEND === false)
-					break;
-
-				this.expect("EXPRESSION");
-				return -1;
-			}
-
 			const expression = this.resolveBinaryOp();
 			if(expression < 0) return -1;
 
 			statements.push(expression);
 
-			continue;
+			if(this.accept("OPERATOR", ",") === 0) {
+				if(this.next() < 0) return -1;
+				continue;
+			}
+
+			break;
+		}
+
+		return statements;
+	}
+
+	resolveBlock(type, context = false) {
+		const options = BIRRA_PARSER_BLOCK_TYPES[type];
+		if(options === undefined) {
+			console.error("Couldn't find block type \"" + type + "\"");
+			return -1;
+		}
+
+		if(context === false) {
+			context = {
+				scope: [],
+			};
+		}
+
+		const statements = [];
+
+		while(true) {
+			let prevKeywords = false;
+			const statement = {
+				const: false,
+				public: false,
+				static: false,
+				
+				scope: [ ...(context.scope) ],
+			};
+
+			if(this.accept("KEYWORD", "pub") === 0) {
+				if(options.acceptPubDeclaration === false) {
+					this.errorAtCurrToken("Unexpected \"pub\" declaration");
+					return -1;
+				}
+
+				statement.public = true;
+				prevKeywords = true;
+
+				if(this.next() < 0) return -1;
+			}
+
+			if(this.accept("KEYWORD", "static") === 0) {
+				if(options.acceptStaticDeclaration === false) {
+					this.errorAtCurrToken("Unexpected \"static\" declaration");
+					return -1;
+				}
+
+				statement.static = true;
+				prevKeywords = true;
+
+				if(this.next() < 0) return -1;
+			}
+
+			if(this.accept("KEYWORD", "const") === 0) {
+				if(options.acceptConstDeclaration === false) {
+					this.errorAtCurrToken("Unexpected \"const\" declaration");
+					return -1;
+				}
+
+				statement.const = true;
+				prevKeywords = true;
+
+				if(this.next() < 0) return -1;
+			}
+
+			if(this.accept("KEYWORD", "let") === 0) {
+				if((options.acceptLetDeclaration === false) || statement.const) {
+					this.errorAtCurrToken("Unexpected \"let\" declaration");
+					return -1;
+				}
+
+				statement.const = false;
+				prevKeywords = true;
+
+				if(this.next() < 0) return -1;
+			}
+
+			if(this.accept("KEYWORD", "namespace") === 0) {
+				if((options.acceptNamespace === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"namespace\" declaration");
+					return -1;
+				}
+
+				if(this.next() < 0) return -1;
+				if(this.expect("VARIABLE") < 0) return -1;
+
+				statement.type = "NAMESPACE";
+				statement.name = this.currToken;
+
+				if(this.next() < 0) return -1;
+
+				const subContext = {
+					scope: [ ...(context.scope), statement.name.value ],
+				};
+
+				statement.statements = this.resolveBlock("NAMESPACE", subContext);
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "class") === 0) {
+				if((options.acceptClass === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"class\" declaration");
+					return -1;
+				}
+
+				if(this.next() < 0) return -1;
+				if(this.expect("VARIABLE") < 0) return -1;
+
+				statement.type = "CLASS";
+				statement.name = this.currToken;
+
+				if(this.next() < 0) return -1;
+
+				const subContext = {
+					scope: [ ...(context.scope), statement.name.value ],
+				};
+
+				statement.statements = this.resolveBlock("CLASS", subContext);
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "while") === 0) {
+				if((options.acceptWhile === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"while\" declaration");
+					return -1;
+				}
+
+				const subContext = {
+					scope: [ ...(context.scope), "[while:" + Birra.randomFloat().toString() + "]" ],
+				};
+
+				const whileStatement = this.resolveWhile(subContext);
+				if(whileStatement < 0) return -1;
+
+				Object.assign(statement, whileStatement);
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "for") === 0) {
+				if((options.acceptFor === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"for\" declaration");
+					return -1;
+				}
+
+				const subContext = {
+					scope: [ ...(context.scope), "[for:" + Birra.randomFloat().toString() + "]" ],
+				};
+
+				const forStatement = this.resolveFor(subContext);
+				if(forStatement < 0) return -1;
+
+				Object.assign(statement, forStatement);
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "if") === 0) {
+				if((options.acceptIf === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"if\" declaration");
+					return -1;
+				}
+
+				const subContext = {
+					scope: [ ...(context.scope), "[if:" + Birra.randomFloat().toString() + "]" ],
+				};
+
+				const ifStatements = this.resolveIf(subContext);
+				if(ifStatements < 0) return -1;
+
+				statement.statements = ifStatements;
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "else") === 0) {
+				if((options.acceptElse === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"else\" declaration");
+					return -1;
+				}
+
+				break;
+			}
+
+			if(this.accept("KEYWORD", "end") === 0) {
+				if((options.acceptEnd === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"end\" declaration");
+					return -1;
+				}
+
+				break;
+			}
+
+			if(this.accept("KEYWORD", "break") === 0) {
+				if((options.acceptBreak === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"break\" declaration");
+					return -1;
+				}
+
+				if(this.next() < 0) return -1;
+
+				statement.type = "BREAK";
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "continue") === 0) {
+				if((options.acceptContinue === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"continue\" declaration");
+					return -1;
+				}
+
+				if(this.next() < 0) return -1;
+
+				statement.type = "CONTINUE";
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("KEYWORD", "return") === 0) {
+				if((options.acceptReturn === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected \"return\" declaration");
+					return -1;
+				}
+
+				if(this.next() < 0) return -1;
+
+				statement.type = "RETURN";
+				statements.push(statement);
+
+				continue;
+			}
+
+			if(this.accept("EOF") === 0) {
+				if((options.acceptEOF === false) || prevKeywords) {
+					this.errorAtCurrToken("Unexpected End of File");
+					return -1;
+				}
+
+				break;
+			}
+			
+			Birra.printDebug("@[Parser.block] Goin' to end of loop:", this.currToken);
+
+			const expressions = this.resolveCommaExpressions(statement);
+			if(expressions < 0) return -1;
+
+			statement.type = "EXPRESSIONS";
+			statement.statements = expressions;
+
+			statements.push(statement);
 		}
 
 		return statements;
@@ -618,7 +851,7 @@ class BirraParser {
 		if(tokens < 0) return -1;
 		this.reset(src, tokens);
 
-		return this.resolveBlock(false, false);
+		return this.resolveBlock("ROOT");
 	}
 };
 
