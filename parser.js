@@ -185,7 +185,7 @@ class BirraParser {
 			.some(x => (x === 0));
 	}
 
-	resolveExpression() {
+	resolveExpression(context) {
 		const token = this.currToken;
 
 		if(this.accept("NUMBER") === 0) {
@@ -211,7 +211,7 @@ class BirraParser {
 		if(this.accept("OPERATOR", "(") === 0) {
 			if(this.next() < 0) return -1;
 
-			const expression = this.resolveBinaryOp();
+			const expression = this.resolveBinaryOp(false, context);
 			if(expression < 0) return -1;
 			
 			if(this.expect("OPERATOR", ")") < 0) return -1;
@@ -220,26 +220,26 @@ class BirraParser {
 			return expression;
 		}
 
-		if(this.accept("OPERATOR", "[") === 0) return this.resolveArray();
-		if(this.accept("OPERATOR", "{") === 0) return this.resolveDictionary();
+		if(this.accept("OPERATOR", "[") === 0) return this.resolveArray(context);
+		if(this.accept("OPERATOR", "{") === 0) return this.resolveDictionary(context);
 
 		if((this.accept("KEYWORD", "function") === 0) || (this.accept("KEYWORD", "fn") === 0))
-			return this.resolveFunction();
+			return this.resolveFunction(context);
 		
 		if(this.isUnaryOperator())
-			return this.resolveUnaryOp();
+			return this.resolveUnaryOp(context);
 		
 		if(this.expect("EXPRESSION") < 0) return -1;
 		return -1;
 	}
 
-	resolveUnaryOp() {
+	resolveUnaryOp(context) {
 		if(this.expect("OPERATOR") < 0) return -1;
 
-		const operator = this.currToken.value;
+		const operator = this.currToken;
 		if(this.next() < 0) return -1;
 
-		const value = this.resolveBinaryOp();
+		const value = this.resolveBinaryOp(false, context);
 		if(value < 0) return -1;
 
 		return {
@@ -249,15 +249,15 @@ class BirraParser {
 		};
 	}
 
-	resolveBinaryOp(operatorPtr = false) {
+	resolveBinaryOp(operatorPtr = false, context) {
 		let callback = false;
 
 		if(operatorPtr === false) operatorPtr = Birra.BINARY_OPERATORS.length - 1;
 
 		if(operatorPtr === 0) {
-			callback = () => this.resolveExpression();
+			callback = () => this.resolveExpression(context);
 		} else {
-			callback = () => this.resolveBinaryOp(operatorPtr - 1);
+			callback = () => this.resolveBinaryOp(operatorPtr - 1, context);
 		}
 
 		let left = callback();
@@ -279,7 +279,7 @@ class BirraParser {
 		return left;
 	}
 
-	resolveFunction() {
+	resolveFunction(context) {
 		if(this.expect("KEYWORD") < 0) return -1;
 		if(this.next() < 0) return -1;
 
@@ -335,7 +335,7 @@ class BirraParser {
 		return func;
 	}
 
-	resolveWhile() {
+	resolveWhile(context) {
 		if(this.expect("KEYWORD", "while") < 0) return -1;
 		if(this.next() < 0) return -1;
 
@@ -343,7 +343,7 @@ class BirraParser {
 			type: "WHILE",
 		};
 		
-		whileStatement.check = this.resolveBinaryOp();
+		whileStatement.check = this.resolveBinaryOp(false, context);
 		if(whileStatement.check < 0) return -1;
 
 		if((this.accept("KEYWORD", "then") === 0) || (this.accept("KEYWORD", "do") === 0)) {
@@ -362,7 +362,7 @@ class BirraParser {
 		}
 	}
 
-	resolveFor() {
+	resolveFor(context) {
 		if(this.expect("KEYWORD", "for") < 0) return -1;
 		if(this.next() < 0) return -1;
 
@@ -374,19 +374,8 @@ class BirraParser {
 			body: [],
 		};
 
-		while(true) {
-			const expression = this.resolveBinaryOp();
-			if(expression < 0) return -1;
-
-			forStatement.pre.push(expression);
-
-			if(this.accept("OPERATOR", ",") === 0) {
-				if(this.next() < 0) return -1;
-				continue;
-			}
-
-			break;
-		}
+		forStatement.pre = this.resolveCommaExpressions(context);
+		if(forStatement.pre < 0) return -1;
 
 		while(true) {
 			if(this.accept("KEYWORD", "while") === 0) {
@@ -397,7 +386,7 @@ class BirraParser {
 
 				if(this.next() < 0) return -1;
 
-				forStatement.check = this.resolveBinaryOp();
+				forStatement.check = this.resolveBinaryOp(false, context);
 				if(forStatement.check < 0) return -1;
 
 				continue;
@@ -411,21 +400,8 @@ class BirraParser {
 
 				if(this.next() < 0) return -1;
 
-				forStatement.post = [];
-
-				while(true) {
-					const expression = this.resolveBinaryOp();
-					if(expression < 0) return -1;
-		
-					forStatement.post.push(expression);
-		
-					if(this.accept("OPERATOR", ",") === 0) {
-						if(this.next() < 0) return -1;
-						continue;
-					}
-		
-					break;
-				}
+				forStatement.post = this.resolveCommaExpressions();
+				if(forStatement.post < 0) return -1;
 
 				continue;
 			}
@@ -439,7 +415,7 @@ class BirraParser {
 			return -1;
 		}
 
-		forStatement.body = this.resolveBlock("WHILE");
+		forStatement.body = this.resolveBlock("WHILE", context);
 		if(forStatement.body < 0) return -1;
 
 		if(this.expect("KEYWORD", "end") < 0) return -1;
@@ -448,7 +424,7 @@ class BirraParser {
 		return forStatement;
 	}
 
-	resolveArray() {
+	resolveArray(context) {
 		if(this.expect("OPERATOR", "[") < 0) return -1;
 		if(this.next() < 0) return -1;
 
@@ -460,7 +436,7 @@ class BirraParser {
 		while(true) {
 			if(this.accept("OPERATOR", "]") === 0) break;
 
-			const expression = this.resolveBinaryOp();
+			const expression = this.resolveBinaryOp(false, context);
 			if(expression < 0) return -1;
 
 			arr.elements.push(expression);
@@ -479,7 +455,7 @@ class BirraParser {
 		return arr;
 	}
 
-	resolveDictionary() {
+	resolveDictionary(context) {
 		if(this.expect("OPERATOR", "{") < 0) return -1;
 		if(this.next() < 0) return -1;
 
@@ -491,7 +467,7 @@ class BirraParser {
 		while(true) {
 			if(this.accept("OPERATOR", "}") === 0) break;
 
-			const expression = this.resolveBinaryOp();
+			const expression = this.resolveBinaryOp(false, context);
 			if(expression < 0) return -1;
 
 			dict.elements.push(expression);
@@ -510,7 +486,7 @@ class BirraParser {
 		return dict;
 	}
 
-	resolveIf() {
+	resolveIf(context) {
 		if(this.expect("KEYWORD", "if") < 0) return -1;
 		if(this.next() < 0) return -1;
 
@@ -521,7 +497,7 @@ class BirraParser {
 			let check = false;
 
 			if(isIF) {
-				check = this.resolveBinaryOp();
+				check = this.resolveBinaryOp(false, context);
 				if(check < 0) return -1;
 			}
 
@@ -530,7 +506,7 @@ class BirraParser {
 				if(this.next() < 0) return -1;
 			}
 			
-			const block = this.resolveBlock("IF");
+			const block = this.resolveBlock("IF", context);
 			if(block < 0) return -1;
 
 			statements.push({
@@ -566,11 +542,11 @@ class BirraParser {
 		return statements;
 	}
 
-	resolveCommaExpressions() {
+	resolveCommaExpressions(context) {
 		const statements = [];
 
 		while(true) {
-			const expression = this.resolveBinaryOp();
+			const expression = this.resolveBinaryOp(false, context);
 			if(expression < 0) return -1;
 
 			statements.push(expression);
@@ -680,6 +656,9 @@ class BirraParser {
 				statement.statements = this.resolveBlock("NAMESPACE", subContext);
 				statements.push(statement);
 
+				if(this.expect("KEYWORD", "end") < 0) return -1;
+				if(this.next() < 0) return -1;
+
 				continue;
 			}
 
@@ -703,6 +682,9 @@ class BirraParser {
 
 				statement.statements = this.resolveBlock("CLASS", subContext);
 				statements.push(statement);
+
+				if(this.expect("KEYWORD", "end") < 0) return -1;
+				if(this.next() < 0) return -1;
 
 				continue;
 			}
@@ -819,6 +801,9 @@ class BirraParser {
 				if(this.next() < 0) return -1;
 
 				statement.type = "RETURN";
+				statement.value = this.resolveBinaryOp(false, context);
+				if(statement.value < 0) return -1;
+
 				statements.push(statement);
 
 				continue;
