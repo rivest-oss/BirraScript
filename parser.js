@@ -185,7 +185,7 @@ class BirraParser {
 			.some(x => (x === 0));
 	}
 
-	resolveExpression(context) {
+	resolveAtom(context) {
 		const token = this.currToken;
 
 		if(this.accept("NUMBER") === 0) {
@@ -211,7 +211,7 @@ class BirraParser {
 		if(this.accept("OPERATOR", "(") === 0) {
 			if(this.next() < 0) return -1;
 
-			const expression = this.resolveBinaryOp(false, context);
+			const expression = this.resolveExpression();
 			if(expression < 0) return -1;
 			
 			if(this.expect("OPERATOR", ")") < 0) return -1;
@@ -239,7 +239,7 @@ class BirraParser {
 		const operator = this.currToken;
 		if(this.next() < 0) return -1;
 
-		const value = this.resolveBinaryOp(false, context);
+		const value = this.resolveExpression();
 		if(value < 0) return -1;
 
 		return {
@@ -256,7 +256,7 @@ class BirraParser {
 
 		if(operatorPtr === 0) {
 			callback = () => {
-				const expression = this.resolveExpression(context);
+				const expression = this.resolveAtom(context);
 				if(expression < 0) return -1;
 
 				if(this.isUnaryOperator()) {
@@ -293,6 +293,10 @@ class BirraParser {
 		}
 
 		return left;
+	}
+
+	resolveExpression() {
+		return this.resolveBinaryOp();
 	}
 
 	resolveFunction(context) {
@@ -359,7 +363,7 @@ class BirraParser {
 			type: "WHILE",
 		};
 		
-		whileStatement.check = this.resolveBinaryOp(false, context);
+		whileStatement.check = this.resolveExpression();
 		if(whileStatement.check < 0) return -1;
 
 		if((this.accept("KEYWORD", "then") === 0) || (this.accept("KEYWORD", "do") === 0)) {
@@ -402,7 +406,7 @@ class BirraParser {
 
 				if(this.next() < 0) return -1;
 
-				forStatement.check = this.resolveBinaryOp(false, context);
+				forStatement.check = this.resolveExpression();
 				if(forStatement.check < 0) return -1;
 
 				continue;
@@ -452,7 +456,7 @@ class BirraParser {
 		while(true) {
 			if(this.accept("OPERATOR", "]") === 0) break;
 
-			const expression = this.resolveBinaryOp(false, context);
+			const expression = this.resolveExpression();
 			if(expression < 0) return -1;
 
 			arr.elements.push(expression);
@@ -483,7 +487,7 @@ class BirraParser {
 		while(true) {
 			if(this.accept("OPERATOR", "}") === 0) break;
 
-			const expression = this.resolveBinaryOp(false, context);
+			const expression = this.resolveExpression();
 			if(expression < 0) return -1;
 
 			dict.elements.push(expression);
@@ -513,7 +517,7 @@ class BirraParser {
 			let check = false;
 
 			if(isIF) {
-				check = this.resolveBinaryOp(false, context);
+				check = this.resolveExpression();
 				if(check < 0) return -1;
 			}
 
@@ -562,7 +566,7 @@ class BirraParser {
 		const statements = [];
 
 		while(true) {
-			const expression = this.resolveBinaryOp(false, context);
+			const expression = this.resolveExpression();
 			if(expression < 0) return -1;
 
 			statements.push(expression);
@@ -834,7 +838,7 @@ class BirraParser {
 				if(this.next() < 0) return -1;
 
 				statement.type = "RETURN";
-				statement.value = this.resolveBinaryOp(false, context);
+				statement.value = this.resolveExpression();
 				if(statement.value < 0) return -1;
 
 				statements.push(statement);
