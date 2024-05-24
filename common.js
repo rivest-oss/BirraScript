@@ -36,6 +36,7 @@ function birraPrintDebug(...args) {
 }
 
 const BIRRA_BINARY_OPERATORS = [
+	".",
 	"**", "*", "/", "%", "+", "-",
 	"<<", ">>",
 	"<", "<=", ">", ">=", "<>", "==", "!=",
@@ -129,6 +130,7 @@ const BIRRA_KEYWORDS = [
 	"then", "else", "do", "end",
 	"extends", "override",
 	"false", "true",
+	"switch", "case", "default",
 ];
 
 module.exports = {

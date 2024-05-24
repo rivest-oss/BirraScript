@@ -255,7 +255,23 @@ class BirraParser {
 		if(operatorPtr === false) operatorPtr = Birra.BINARY_OPERATORS.length - 1;
 
 		if(operatorPtr === 0) {
-			callback = () => this.resolveExpression(context);
+			callback = () => {
+				const expression = this.resolveExpression(context);
+				if(expression < 0) return -1;
+
+				if(this.isUnaryOperator()) {
+					const operator = this.currToken;
+					if(this.next() < 0) return -1;
+
+					return {
+						type: "UNARY_OP",
+						operator,
+						value: expression,
+					};
+				}
+
+				return expression;
+			};
 		} else {
 			callback = () => this.resolveBinaryOp(operatorPtr - 1, context);
 		}
@@ -556,6 +572,9 @@ class BirraParser {
 				continue;
 			}
 
+			if(this.accept("OPERATOR", ";") === 0)
+				if(this.next() < 0) return -1;
+
 			break;
 		}
 
@@ -580,60 +599,74 @@ class BirraParser {
 		while(true) {
 			let prevKeywords = false;
 			const statement = {
-				const: false,
+				const: 0,
 				public: false,
 				static: false,
 				
 				scope: [ ...(context.scope) ],
 			};
 
-			if(this.accept("KEYWORD", "pub") === 0) {
-				if(options.acceptPubDeclaration === false) {
-					this.errorAtCurrToken("Unexpected \"pub\" declaration");
-					return -1;
+			while(this.accept("KEYWORD") === 0) {
+				if(this.accept("KEYWORD", "pub") === 0) {
+					if((options.acceptPubDeclaration === false) || statement.public) {
+						this.errorAtCurrToken("Unexpected \"pub\" declaration");
+						return -1;
+					}
+	
+					statement.public = true;
+					prevKeywords = true;
+	
+					if(this.next() < 0) return -1;
+
+					continue;
 				}
 
-				statement.public = true;
-				prevKeywords = true;
+				if(this.accept("KEYWORD", "static") === 0) {
+					if((options.acceptStaticDeclaration === false) || statement.static) {
+						this.errorAtCurrToken("Unexpected \"static\" declaration");
+						return -1;
+					}
+	
+					statement.static = true;
+					prevKeywords = true;
+	
+					if(this.next() < 0) return -1;
 
-				if(this.next() < 0) return -1;
-			}
-
-			if(this.accept("KEYWORD", "static") === 0) {
-				if(options.acceptStaticDeclaration === false) {
-					this.errorAtCurrToken("Unexpected \"static\" declaration");
-					return -1;
+					continue;
 				}
 
-				statement.static = true;
-				prevKeywords = true;
+				if(this.accept("KEYWORD", "let") === 0) {
+					if((options.acceptLetDeclaration === false) || statement.const) {
+						this.errorAtCurrToken("Unexpected \"let\" declaration");
+						return -1;
+					}
+	
+					statement.const = false;
+					prevKeywords = true;
+	
+					if(this.next() < 0) return -1;
 
-				if(this.next() < 0) return -1;
-			}
-
-			if(this.accept("KEYWORD", "const") === 0) {
-				if(options.acceptConstDeclaration === false) {
-					this.errorAtCurrToken("Unexpected \"const\" declaration");
-					return -1;
+					continue;
 				}
 
-				statement.const = true;
-				prevKeywords = true;
+				if(this.accept("KEYWORD", "const") === 0) {
+					if((options.acceptConstDeclaration === false) || (statement.const !== 0)) {
+						this.errorAtCurrToken("Unexpected \"const\" declaration");
+						return -1;
+					}
+	
+					statement.const = true;
+					prevKeywords = true;
+	
+					if(this.next() < 0) return -1;
 
-				if(this.next() < 0) return -1;
-			}
-
-			if(this.accept("KEYWORD", "let") === 0) {
-				if((options.acceptLetDeclaration === false) || statement.const) {
-					this.errorAtCurrToken("Unexpected \"let\" declaration");
-					return -1;
+					continue;
 				}
 
-				statement.const = false;
-				prevKeywords = true;
-
-				if(this.next() < 0) return -1;
+				break;
 			}
+
+			statement.const = Boolean(statement.const);
 
 			if(this.accept("KEYWORD", "namespace") === 0) {
 				if((options.acceptNamespace === false) || prevKeywords) {
